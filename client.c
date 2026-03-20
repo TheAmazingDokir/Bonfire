@@ -39,17 +39,23 @@ int main() {
 
     int ret = connect(soc, (struct sockaddr *)&server, sizeof(struct sockaddr_in));
     if (ret == -1) {
-        perror("client: connect");
-        exit(1);
+        printf("Server is not running...\n");
+        printf("Try connecting later. \n");
+
+        while(ret == -1){
+            ret = connect(soc, (struct sockaddr *)&server, sizeof(struct sockaddr_in));
+            sleep(1);
+        }
     }
 
-    printf("Connect returned %d\n", ret);
+    printf("Connected to the server! \n");
 
-    char buf[10];
-    read(soc, buf, 7);
-    buf[7] = '\0';
-    printf("I read %s\n", buf);
-
-    write(soc, "0123456789", 10);
+    char message[10];
+    while(1) {
+        printf("Message: ");
+        scanf("%s", message);
+        message[7] = '\0';
+        write(soc, message, 10);
+    }
     return 0;
 }
