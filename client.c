@@ -11,13 +11,28 @@
 #include <termios.h>
 
 struct termios term, original;
-tcgetattr(0, &term);            // Get current settings
-original = term;                // Save original settings
 
 void handler() {
-    disable_non_canonical_input();
+    tcsetattr(0, TCSANOW, &original);
     exit(0);
 }
+
+// Utils
+
+void enable_non_canonical_input(){
+    tcgetattr(0, &term);            // Get current settings
+    original = term;                // Save original settings
+    term.c_lflag &= ~(ICANON | ECHO);  // Disable canonical mode and echo
+    term.c_cc[VMIN] = 1;            // Require 1 character to read
+    term.c_cc[VTIME] = 0;           // No timeout
+    tcsetattr(0, TCSANOW, &term);   // Apply new settings
+}
+
+void disable_non_canonical_input(){
+    tcsetattr(0, TCSANOW, &original);
+}
+
+
 
 int main() {
     // create socket
@@ -60,48 +75,100 @@ int main() {
     }
 
     printf("Connected to the server! \n");
+    enable_non_canonical_input();
 
-    char message_text[256];
+    fd_set read_fds;
+    int max_fd;
+
+
+    Message *soc_msg = malloc(sizeof(Message));
+    char soc_msg_buf[sizeof(Message)];
+    int soc_msg_size = 0;
+
+    Message *stdin_msg = malloc(sizeof(Message));
+    char stdin_msg_buf[256];
+    int stdin_msg_size = 0;
+
+    char out_msg_buf[sizeof(Message)];
+
+    printf("> ");
     while(1) {
-        printf("> ");
-        fgets(message_text, sizeof(message_text), stdin);
-        Message *message = malloc(sizeof(Message));
-        strcpy(message->data, message_text);
-        message->data_size = strlen(message_text);
-        char buf[sizeof(Message)];
-        memcpy(buf, message, sizeof(Message));
+        // Clean fds sets
+        FD_ZERO(&read_fds);
 
-        int count = 0;
-        while(count < sizeof(Message)){
-            int w = write(soc, buf+count, sizeof(Message)-count);
-            count += w;
+        // set socket to be read fd
+        FD_SET(soc, &read_fds);
+        FD_SET(STDIN_FILENO, &read_fds);
+
+        if (soc > STDIN_FILENO){
+            max_fd = soc;
+        } else{
+            max_fd = STDIN_FILENO;
         }
 
-        count = 0;
+        // Select between socket input and std input
+        if (select(max_fd + 1, &read_fds, NULL, NULL, NULL) == -1){
+            perror("select");
+            exit(1);
+        }
 
-        while(count < sizeof(Message)){
-            int r = read(soc, buf+count, sizeof(Message)-count);
-            count += r;
+        // Do the message reading and printing from a socket
+        if(FD_ISSET(soc, &read_fds)){
+            if(soc_msg_size < sizeof(Message)){
+                int r = read(soc, soc_msg_buf+soc_msg_size, sizeof(Message)-soc_msg_size);
+                soc_msg_size += r;
+            }
+
+            if(soc_msg_size == sizeof(Message)){
+                memcpy(soc_msg, soc_msg_buf, sizeof(Message));
+                soc_msg->data[soc_msg->data_size-1] = '\0';
+                printf("%s\n", soc_msg->data);
+                printf("> ");
+                fflush(stdout);
+
+                // Clean up the message and the buffer
+                soc_msg_size = 0;
+            }
+        }
+
+        // Do message reading and sending from the input
+        if(FD_ISSET(STDIN_FILENO, &read_fds)){
+            char c = getchar();
+            if (c == 127 || c == '\b'){
+                // erase on backspace
+                if (stdin_msg_size > 0){
+                    printf("\b \b");
+                    fflush(stdout);
+                    stdin_msg_size--;
+                }
+            } else {
+                stdin_msg_buf[stdin_msg_size] = c;
+                stdin_msg_size += 1;
+                printf("%c", c);
+                fflush(stdout);
+            }
+
+            if (c == '\n' || stdin_msg_size == 256){
+                // Send message to  the socket
+                strcpy(stdin_msg->data, stdin_msg_buf);
+                stdin_msg->data_size = stdin_msg_size;
+                
+                memcpy(out_msg_buf, stdin_msg, sizeof(Message));
+
+                int count = 0;
+                while(count < sizeof(Message)){
+                    int w = write(soc, out_msg_buf+count, sizeof(Message)-count);
+                    count += w;
+                }
+
+                // Clean up the message and buffer
+                stdin_msg_size = 0;
+            }
         }
         
-        memcpy(message, buf, sizeof(Message));
-        message->data[message->data_size] = '\0';
-        printf("%s\n", message->data);
-        free(message);
     }
+    free(soc_msg);
+    free(stdin_msg);
+    disable_non_canonical_input();
     return 0;
-}
-
-
-// Utils
-
-void enable_non_canonical_input(){
-    term.c_lflag &= ~ICANON;        // Disable canonical mode
-    term.c_cc[VMIN] = 1;            // Require 1 character to read
-    term.c_cc[VTIME] = 0;           // No timeout
-    tcsetattr(0, TCSANOW, &term);   // Apply new settings
-}
-
-void disable_non_canonical_input(){
-    tcsetattr(0, TCSANOW, &original);
 }

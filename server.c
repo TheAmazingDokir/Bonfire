@@ -116,9 +116,13 @@ int main() {
 
                         for (int j = 0; j < current_number_of_connections; j++){
                             Client *recieving_client = client_sockets[j];
-                            memcpy(recieving_client->out_buf + recieving_client->out_buf_size, 
+
+                            // Only send message to other clients (don't send to self)
+                            if (recieving_client->soc != client->soc){ 
+                                memcpy(recieving_client->out_buf + recieving_client->out_buf_size, 
                                 client->in_buf, client->in_buf_size); // maybe change letter to  something safer
-                            recieving_client->out_buf_size += client->in_buf_size;
+                                recieving_client->out_buf_size += client->in_buf_size;
+                            }
                         }                       
                         
                         client->in_buf_size = 0;
