@@ -36,8 +36,8 @@ typedef struct server {
 typedef struct client {
 	int soc;
 	char user_name[16];
-	char in_buf[384];
-	char out_buf[1536];
+	char in_buf[16384];
+	char out_buf[16384];
 	int in_buf_size;
 	int out_buf_size;
 } Client;
