@@ -18,9 +18,8 @@ typedef struct message_list {
 
 typedef struct channel {
 	char name[32];
-	struct channel *members;
-	MessageList* messages_head;
-	MessageList* messages_tail;
+	uint8_t active_members[1024 / 8]; // bit map that indicates who is currently in the channel
+	int num_members;
 } Channel;
 
 typedef struct user {
@@ -36,6 +35,7 @@ typedef struct server {
 typedef struct client {
 	int soc;
 	char user_name[16];
+	Channel *active_channel;
 	char in_buf[16384];
 	char out_buf[16384];
 	int in_buf_size;
