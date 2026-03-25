@@ -349,12 +349,12 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
                 char *channel_name = msg->data;
                 if (check_channel_exists(channels, *num_channels, channel_name))
                 {
-                    respond_to_client_with_message(client, "START:F", 0, NULL);
+                    respond_to_client_with_message(client, "START:F", 23, "Channel already exists");
                     DEBUG_PRINT("[START] Client fd=%d failed to start channel '%s'\n", client->soc, channel_name);
                 }
                 else
                 {
-                    respond_to_client_with_message(client, "START:S", 0, NULL);
+                    respond_to_client_with_message(client, "START:S", 30, "Channel created successfully!");
                     handle_create_channel(channels, num_channels, channel_name);
                     handle_join_channel(client, channels, *num_channels, channel_name, i);
                     DEBUG_PRINT("[START] Client fd=%d started channel '%s'\n", client->soc, channel_name);
@@ -365,21 +365,24 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
                 char *channel_name = msg->data;
                 if (check_channel_exists(channels, *num_channels, channel_name))
                 {
-                    respond_to_client_with_message(client, "JOIN:S", 0, NULL);
+                    respond_to_client_with_message(client, "JOIN:S", 29, "Successfully joined channel!");
                     handle_join_channel(client, channels, *num_channels, channel_name, i);
                     send_history(client);
                     DEBUG_PRINT("[JOIN] Client fd=%d joined channel '%s'\n", client->soc, channel_name);
                 }
                 else
                 {
-                    respond_to_client_with_message(client, "JOIN:F", 0, NULL);
+                    respond_to_client_with_message(client, "JOIN:F", 22, "Channel not found!");
                     DEBUG_PRINT("[JOIN] Client fd=%d failed to join channel '%s'\n", client->soc, channel_name);
                 }
             }
             else
             {
-                archive_message(msg); // saving message to files
-                broadcast_message(clients, *count, client, msg, channels, *num_channels);
+                if (client->active_channel != NULL)
+                {
+                    archive_message(msg); // saving message to files
+                    broadcast_message(clients, *count, client, msg, channels, *num_channels);
+                }
             }
             client->in_buf_size = 0;
         }
@@ -489,7 +492,15 @@ void load_channels(Channel **channels, int *num_channels)
     struct dirent *dp;
     while ((dp = readdir(directory)) != NULL)
     {
-        handle_create_channel(channels, num_channels, dp->d_name);
+        if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
+        {
+            continue;
+        }
+        char channel_name[32];
+        strncpy(channel_name, dp->d_name, strlen(dp->d_name) - 4);
+        channel_name[strlen(dp->d_name) - 4] = '\0';
+        handle_create_channel(channels, num_channels, channel_name);
+        DEBUG_PRINT("[LOAD_CHANNEL] Channel name = %s\n", channel_name);
     }
     closedir(directory);
 }
