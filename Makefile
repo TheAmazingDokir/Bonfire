@@ -7,7 +7,7 @@ all: $(TARGETS)
 server: server.c channels.c entities.h channels.h constants.h set_ops.h
 	gcc $(CFLAGS) -o server server.c channels.c
 
-client: client.c entities.h
+client: client.c entities.h constants.h constants.c
 	gcc $(CFLAGS) -o client client.c
 
 clean:

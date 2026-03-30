@@ -7,8 +7,11 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <time.h>
 #include "entities.h"
 #include <termios.h>
+#include "constants.h"
+#include "constants.c"
 
 struct termios term, original;
 
@@ -53,6 +56,25 @@ void get_username(char *username, int max_len)
     {
         strcpy(username, "Anon");
     }
+}
+
+// Returns -1 if color is not found
+int get_code_from_colour_name(char *colour, int colour_len)
+{
+    for (int i = 0; i < NUMBER_OF_TEXT_COLOURS; i++)
+    {
+        if (strncmp(TEXT_COLOURS[i].name, colour, colour_len - 1) == 0)
+        {
+            return TEXT_COLOURS[i].code;
+        }
+    }
+    return -1;
+}
+
+int get_random_username_colour()
+{
+    srand(time(NULL));
+    return TEXT_COLOURS[rand() % NUMBER_OF_TEXT_COLOURS].code;
 }
 
 int main()
@@ -105,7 +127,9 @@ int main()
 
     // user login (has to be before canonical input otherwise gets messed up)
     char username[16];
+    int username_colour;
     get_username(username, 16);
+    username_colour = get_random_username_colour();
     enable_non_canonical_input();
 
     // send login to server
@@ -185,7 +209,14 @@ int main()
                 // add username to msg
                 if (strlen(soc_msg->user) > 0)
                 {
-                    printf("[%s] %s\n", soc_msg->user, soc_msg->data);
+                    if (soc_msg->username_colour > 0)
+                    {
+                        printf(COLOURED_USER_NAME, soc_msg->username_colour, soc_msg->user, soc_msg->data);
+                    }
+                    else
+                    {
+                        printf("[%s] %s\n", soc_msg->user, soc_msg->data);
+                    }
                 }
                 else
                 {
@@ -257,11 +288,25 @@ int main()
                     stdin_msg->data[stdin_msg_size - 8] = '\0';
                     stdin_msg->data_size = stdin_msg_size - 7;
                 }
+                else if (strncmp(stdin_msg_buf, ":COLOR", 6) == 0)
+                {
+                    int code = get_code_from_colour_name(stdin_msg_buf + 7, stdin_msg_size - 7);
+                    if (code == -1)
+                    {
+                        printf("Invalid color!\n");
+                    }
+                    else
+                    {
+                        username_colour = code;
+                        printf("Colour changed successfully!\n");
+                    }
+                }
                 else
                 {
                     memset(stdin_msg, 0, sizeof(Message)); // remove garbage
                     strcpy(stdin_msg->action, "SEND");
                     strcpy(stdin_msg->user, username);
+                    stdin_msg->username_colour = username_colour;
                     strncpy(stdin_msg->data, stdin_msg_buf, stdin_msg_size);
                     stdin_msg->data[strlen(stdin_msg_buf) - 1] = '\0';
                     stdin_msg->data_size = stdin_msg_size;
