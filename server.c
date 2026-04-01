@@ -29,6 +29,8 @@ void archive_message(Message *msg);
 void broadcast_message(Client **clients, int count, Client *sender, Message *msg, Channel **channels, int num_channels);
 void send_history(Client *target);
 void respond_to_client_with_message(Client *client, char *action, int msg_size, char *msg_data);
+void broadcast_system_message(Client *client_to_exclude, Client **clients, int count, char *action, char *msg_data, Channel **channels, int num_channels);
+void send_disconnect_message(Client *client_to_exclude, Client **clients, int count, Channel **channels, int num_channels);
 
 int CLIENT_IN_BUF_SIZE = sizeof(Message) * 51; // 2^14 bytes
 int CLIENT_OUT_BUF_SIZE = sizeof(Message) * 51;
@@ -302,6 +304,10 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
     {
         DEBUG_PRINT("[DISCONNECT] Client fd=%d | Was client %d of %d\n", client->soc, i, *count);
         printf("Client %d disconnected\n", client->soc);
+
+        // Send disconnect message to all clients in the old channel
+        send_disconnect_message(client, clients, *count, channels, *num_channels);
+
         close(client->soc);
         free(client);
 
@@ -347,6 +353,10 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
                 else
                 {
                     respond_to_client_with_message(client, "START:S", 30, "Channel created successfully!");
+
+                    // Send disconnect message to all clients in the old channel
+                    send_disconnect_message(client, clients, *count, channels, *num_channels);
+
                     handle_create_channel(channels, num_channels, channel_name);
                     handle_join_channel(client, channels, *num_channels, channel_name, i);
                     DEBUG_PRINT("[START] Client fd=%d started channel '%s'\n", client->soc, channel_name);
@@ -358,8 +368,20 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
                 if (check_channel_exists(channels, *num_channels, channel_name))
                 {
                     respond_to_client_with_message(client, "JOIN:S", 29, "Successfully joined channel!");
+
+                    // Send disconnect message to all clients in the old channel
+                    send_disconnect_message(client, clients, *count, channels, *num_channels);
+
+                    // Send system message to all clients in the same channel
+                    char message[64];
+                    strcpy(message, "");
+                    // Display in green colour
+                    strcat(message, "\t\033[32m(");
+                    strcat(message, client->user_name);
+                    strcat(message, " has joined the channel)\033[0m");
                     handle_join_channel(client, channels, *num_channels, channel_name, i);
                     send_history(client);
+                    broadcast_system_message(client, clients, *count, "SYS", message, channels, *num_channels);
                     DEBUG_PRINT("[JOIN] Client fd=%d joined channel '%s'\n", client->soc, channel_name);
                 }
                 else
@@ -419,6 +441,34 @@ void respond_to_client_with_message(Client *client, char *action, int msg_size, 
     else
     {
         DEBUG_PRINT("[WARN] Client fd=%d out_buf FULL (%d bytes). Message dropped.\n", client->soc, client->out_buf_size);
+    }
+}
+
+// Broadcasts a system message to all clients in the same channel except the excluded client
+void broadcast_system_message(Client *client_to_exclude, Client **clients, int count, char *action, char *msg_data, Channel **channels, int num_channels)
+{
+    Message *message = malloc(sizeof(Message));
+    strncpy(message->action, action, sizeof(message->action) * sizeof(char));
+    strncpy(message->channel, client_to_exclude->active_channel->name, sizeof(message->channel) * sizeof(char));
+    message->user[0] = '\0'; // system message has no sender
+    message->data_size = strlen(msg_data) + 1;
+    strncpy(message->data, msg_data, sizeof(message->data) * sizeof(char));
+    message->data[strlen(msg_data)] = '\0';
+
+    broadcast_message(clients, count, client_to_exclude, message, channels, num_channels);
+}
+
+void send_disconnect_message(Client *client_to_exclude, Client **clients, int count, Channel **channels, int num_channels)
+{
+    // Send disconnect message to all clients in the old channel
+    if (client_to_exclude->active_channel != NULL)
+    {
+        char message[64];
+        // Display in red colour
+        strcpy(message, "\t\033[31m(");
+        strcat(message, client_to_exclude->user_name);
+        strcat(message, " has left the channel)\033[0m");
+        broadcast_system_message(client_to_exclude, clients, count, "SYS", message, channels, num_channels);
     }
 }
 
