@@ -301,6 +301,15 @@ int main()
                         printf("Colour changed successfully!\n");
                     }
                 }
+                else if (strncmp(stdin_msg_buf, ":FRIEND", 7) == 0)
+                {
+                    memset(stdin_msg, 0, sizeof(Message)); // remove garbage
+                    strcpy(stdin_msg->action, "FRIEND");
+                    strcpy(stdin_msg->user, username);
+                    strncpy(stdin_msg->data, stdin_msg_buf + 8, stdin_msg_size - 8);
+                    stdin_msg->data[stdin_msg_size - 9] = '\0';
+                    stdin_msg->data_size = stdin_msg_size - 8;
+                }
                 else
                 {
                     memset(stdin_msg, 0, sizeof(Message)); // remove garbage
