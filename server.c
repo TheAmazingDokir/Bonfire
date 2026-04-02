@@ -390,6 +390,11 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
                     DEBUG_PRINT("[JOIN] Client fd=%d failed to join channel '%s'\n", client->soc, channel_name);
                 }
             }
+            else if (strcmp(msg->action, "ONLINE") == 0)
+            {
+                send_online_users_message(client, clients, count);
+                EBUG_PRINT("[ONLINE] Client fd=%d checked who is online\n", client->soc);
+            }
             else
             {
                 if (client->active_channel != NULL)
@@ -424,6 +429,7 @@ void respond_to_client_with_message(Client *client, char *action, int msg_size, 
     Message *message = malloc(sizeof(Message));
     strncpy(message->action, action, sizeof(message->action) * sizeof(char));
     message->data_size = msg_size;
+    message->user[0] = '\0';
     if (msg_data != NULL)
     {
         strncpy(message->data, msg_data, sizeof(message->data) * sizeof(char));
@@ -470,6 +476,34 @@ void send_disconnect_message(Client *client_to_exclude, Client **clients, int co
         strcat(message, " has left the channel)\033[0m");
         broadcast_system_message(client_to_exclude, clients, count, "SYS", message, channels, num_channels);
     }
+}
+
+void send_online_users_message(Client *client, Client **clients, int count)
+{
+    char message_data[256];
+    int message_size = 0;
+    Channel *channel = client->active_channel;
+    for (int i = 0; i < count; i++)
+    {
+        if (IS_BIT_SET(channel->active_members, i))
+        {
+            // Add only if fits fully
+            if (256 - message_size > strlen(clients[i]->user_name) + 12)
+            {
+                strcat(message_data, clients[i]->user_name);
+                strcat(message_data, "\n");
+                message_size += strlen(clients[i]->user_name) + 1;
+            }
+            else
+            {
+                strcat(message_data, "And others\n");
+                message_size += 11;
+                break;
+            }
+        }
+    }
+    message_data[message_size] = '\0';
+    respond_to_client_with_message(client, "ONLINE", message_size, message_data);
 }
 
 // Utils
