@@ -552,6 +552,7 @@ int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, ch
         printf("$   /chad       - Gigachad.\n");
         printf("$   /moai       - Moai.\n");
         printf("$   /amongus    - Are you sus?\n");
+        printf("$   /pony       - Friendship is magic!\n");
         printf("$ Tip: Type the command to send the ASCII art to chat\n");
         return 0;
     }
@@ -749,5 +750,21 @@ void print_ascii_art(char *data) {
         printf("⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⣿⣿⡇⠀⢹⣿⡆⠀⠀⠀⣸⣿⠇⠀⠀⠀ \n");
         printf("⠀⠀⠀⠀⠀⠀⠀⢿⣿⣦⣄⣀⣠⣴⣿⣿⠁⠀⠈⠻⣿⣿⣿⣿⡿⠏⠀⠀⠀⠀ \n");
         printf("⠀⠀⠀⠀⠀⠀⠀⠈⠛⠻⠿⠿⠿⠿⠋⠁⠀\n");
+    }
+    else if (strcmp(data, "/pony") == 0) {
+        printf("⠀⠀⠀⣠⣴⣾⡿⠿⢷⣶⣄⡠⢤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⠀⠀⣠⡖⠉⠀⠀⠀⠐⠒⠩⠁⢠⢱⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⢀⣠⠝⠁⠀⢀⢀⡤⣖⡄⠉⠀⠘⢸⣀⣠⠖⢳⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⠈⠁⠒⠒⡎⠙⣏⡞⢻⣿⠂⠀⢀⢶⠁⠋⠀⡮⠤⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⣀⠇⠀⠸⢿⣿⠇⢀⠴⠁⢸⠤⠀⠊⠀⡼⠁⣀⣀⣀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠘⢤⡂⠀⠈⠁⢉⠖⣀⣴⡇⡰⢤⠠⢾⣴⡿⠿⠿⢿⣿⣷⣄⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠈⠉⠉⣝⡣⣾⡿⡳⠁⡀⣊⠤⢞⣵⣴⣎⡀⠀⠈⢻⣿⢷⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⣀⣀⡟⢱⡟⢰⠃⠀⠼⠜⢤⡀⠘⡄⣿⣷⡀⠀⠀⢻⡆⠁⠀⠀\n");
+        printf("⠀⠀⠀⡠⠒⠉⠀⠀⠀⠀⠣⣸⠀⠀⠀⠀⢙⠄⢀⣧⣿⣿⠁⠀⠀⢸⡇⠀⠀⠀\n");
+        printf("⠀⢠⠊⠀⠀⢀⠔⢒⠒⠒⢢⠤⢀⣀⣈⣄⠈⠙⠻⢿⡿⠃⠀⠀⠀⢸⣇⠀⠀⠀\n");
+        printf("⠀⠘⠒⠤⠤⠋⠀⡎⠀⠀⡆⠀⠀⠸⠀⠀⡗⡄⢀⡟⣡⡄⠀⠀⠀⢸⣿⡄⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⢇⠀⢠⠃⠀⢀⢳⠁⠸⢾⠁⢇⠀⠀⢀⠀⢏⠉⠂⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⢇⠀⠀⣸⢀⠎⠀⠀⡘⡆⠀⠀⢸⠀⠈⠲⣄⡈⠢⣌⡳⢄⡀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠘⠤⠚⠁⠮⠤⠤⠔⢹⣀⣀⣠⠇⠀⠀⠀⠀⠉⠉⠉⠉⠉⠀\n");
     }
 }
