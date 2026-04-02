@@ -457,18 +457,15 @@ void build_outgoing_message(Message *stdin_msg, char *stdin_msg_buf, int stdin_m
         stdin_msg->data_size = stdin_msg_size - 9;
     } else if (strncmp(stdin_msg_buf, "/color", 6) == 0) {
         int code = get_code_from_colour_name(stdin_msg_buf + 7, stdin_msg_size - 7);
-        if (code == -1)
-        {
+        if (code == -1) {
             printf("Invalid color!\n");
         }
-        else
-        {
+        else {
             *username_colour = code;
             printf("Colour changed successfully!\n");
         }
-    }
-    else if (strncmp(stdin_msg_buf, "/friend", 7) == 0)
-    {
+        // DEBUG_PRINT("[/COLOR] Colour=%s\n", stdin_msg->username_colour);
+    } else if (strncmp(stdin_msg_buf, "/friend", 7) == 0) {
         memset(stdin_msg, 0, sizeof(Message)); // remove garbage
         strcpy(stdin_msg->action, "FRIEND");
         strcpy(stdin_msg->user, username);
@@ -479,11 +476,12 @@ void build_outgoing_message(Message *stdin_msg, char *stdin_msg_buf, int stdin_m
         memset(stdin_msg, 0, sizeof(Message)); // remove garbage
         strcpy(stdin_msg->action, "SEND");
         strcpy(stdin_msg->user, username);
+        stdin_msg->username_colour = username_colour;
         strncpy(stdin_msg->data, stdin_msg_buf, stdin_msg_size);
         stdin_msg->data[stdin_msg_size - 1] = '\0';
         stdin_msg->data_size = stdin_msg_size;
     }
-    DEBUG_PRINT("[SEND] Action=%s | DataSize=%d | Data=\"%.50s\"\n", stdin_msg->action, stdin_msg->data_size, stdin_msg->data);
+    DEBUG_PRINT("[SEND] Action=%s | DataSize=%d | Colour=%d | Data=\"%.50s\"\n", stdin_msg->action, stdin_msg->data_size, stdin_msg->username_colour, stdin_msg->data);
 }
 
 
