@@ -195,11 +195,11 @@ void broadcast_message(Client **clients, int count, Client *sender, Message *msg
     for (int i = 0; i < count; i++)
     {
 
-        // don't send again to sender
-        if (clients[i]->soc == sender->soc)
-        {
-            continue;
-        }
+        // don't send again to sender 
+        // if (clients[i]->soc == sender->soc)
+        // {
+        //     continue;    <- had to uncomment cuz i removed client-side message echos
+        // }
 
         // don't send to clients that are not in the channel
         if (IS_BIT_SET(channel->active_members, i) == 0)

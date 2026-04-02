@@ -13,6 +13,14 @@
 #include "constants.h"
 #include "constants.c"
 
+#define DEBUG 1  // 1 = debug on, 0 = off
+
+#if DEBUG
+#define DEBUG_PRINT(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#else
+#define DEBUG_PRINT(fmt, ...)
+#endif
+
 // vars
 struct termios term, original;
 int in_channel = 0;     // 0 = cant send, 1 = can send
@@ -29,7 +37,7 @@ int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, ch
 void request_channels(int soc);
 void emoji_parser(char *str);
 void render_menu();
-
+void print_ascii_art(char *data);
 
 void handler() { // whats this for? haven't seen it used anywhere....
     tcsetattr(0, TCSANOW, &original);
@@ -112,7 +120,7 @@ int main() {
     int username_colour;
     get_username(username, 16);
     username_colour = get_random_username_colour();
-    printf("DEBUG: Username: '%s'\n", username); 
+    DEBUG_PRINT("[CLIENT] Username: '%s'\n", username);
     enable_non_canonical_input();
     render_menu();
 
@@ -177,7 +185,7 @@ int main() {
                         strncpy(current_channel, stdin_msg_buf + 6, 31);
                         current_channel[31] = '\0';
                         render_menu();
-                        printf("Joined channel: %s", current_channel);
+                        printf("Joined channel: %s", current_channel);     // TODO only make this show up when successful.
                     } else if (strncmp(stdin_msg_buf, "/create", 7) == 0) {
                         in_channel = 1;
                         strncpy(current_channel, stdin_msg_buf + 8, 31);
@@ -188,15 +196,12 @@ int main() {
                     
                     memcpy(out_msg_buf, stdin_msg, sizeof(Message)); // send message to the socket
                     send_message_to_server(soc, out_msg_buf);
-                    
-                    // show sender their own message with emoji parsed
-                    // if (strcmp(stdin_msg->action, "SEND") == 0) {
-                    //     char display_buf[256];
-                    //     strncpy(display_buf, stdin_msg->data, 255);
-                    //     display_buf[255] = '\0';
-                    //     emoji_parser(display_buf);
-                    //     printf("$ [You] %s\n", display_buf);
-                    // } BAD IDEA NOPE UNLESS WE MAKE ONLY SERVER SEND MSG AND WIPE CLIENT's
+
+                    // ANSI escape to move up one line, clear it (this is to make emoji work for sender)
+                    if (strcmp(stdin_msg->action, "SEND") == 0) {
+                        printf("\033[A\033[2K");  
+                        //printf("\n");
+                    }
                 }
 
                 // clean up the message and buffer
@@ -267,6 +272,7 @@ int setup_socket(int *soc, struct sockaddr_in *server) {
         perror("client: socket");
         return -1;
     }
+    DEBUG_PRINT("[SOCKET] Created: fd=%d\n", *soc);
 
     // initialize server address
     server->sin_family = AF_INET;
@@ -290,6 +296,7 @@ int setup_socket(int *soc, struct sockaddr_in *server) {
 
     int ret = connect(*soc, (struct sockaddr *)server, sizeof(struct sockaddr_in));
     if (ret == -1) {
+        DEBUG_PRINT("[CONNECT] Server offline, waiting...\n");
         printf("$ Server is currently offline.\n");
         printf("$ Awaiting connection... \n");
 
@@ -299,6 +306,7 @@ int setup_socket(int *soc, struct sockaddr_in *server) {
         }
     }
 
+    DEBUG_PRINT("[CONNECT] Connected to server!\n");
     printf("$ Connected to the server! \n");
     return 0;
 }
@@ -346,6 +354,15 @@ int handle_server_message(int soc, Message *soc_msg, char *soc_msg_buf, int *soc
             soc_msg->data[soc_msg->data_size - 1] = '\0';
         }
 
+        DEBUG_PRINT("[RECV] Action=%s | DataSize=%d | Data=\"%.50s\"\n", soc_msg->action, soc_msg->data_size, soc_msg->data);
+
+        // ignore chat messages when user in main menu
+        if (in_channel == 0 && strcmp(soc_msg->action, "SEND") == 0) {
+            DEBUG_PRINT("[RECV] IGNORED (not in channel)\n");
+            *soc_msg_size = 0;
+            return 0;  // throw it away lol
+        }
+
         // erase the current input
         for (int i = 0; i < stdin_msg_size; i++) {
             printf("\b");
@@ -365,6 +382,7 @@ int handle_server_message(int soc, Message *soc_msg, char *soc_msg_buf, int *soc
             printf("%s\n", soc_msg->data);
         }
 
+        print_ascii_art(soc_msg->data);
 
         printf("> ");
         // reprint the current input after printing the message
@@ -465,7 +483,9 @@ void build_outgoing_message(Message *stdin_msg, char *stdin_msg_buf, int stdin_m
         stdin_msg->data[stdin_msg_size - 1] = '\0';
         stdin_msg->data_size = stdin_msg_size;
     }
-} 
+    DEBUG_PRINT("[SEND] Action=%s | DataSize=%d | Data=\"%.50s\"\n", stdin_msg->action, stdin_msg->data_size, stdin_msg->data);
+}
+
 
 
 // sends the Message struct to server socket
@@ -492,6 +512,7 @@ int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, ch
     
     // leave command 
     if (strncmp(stdin_msg_buf, "/leave", 6) == 0) {
+        DEBUG_PRINT("[CMD] /leave triggered\n");
         *in_channel = 0;
         current_channel[0] = '\0';
         render_menu();
@@ -500,6 +521,7 @@ int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, ch
 
     // help command
     if (strncmp(stdin_msg_buf, "/help", 5) == 0) {
+        DEBUG_PRINT("[CMD] /help triggered\n");
         printf("$ Available commands:\n");
         printf("$   /channels         - List active channels\n");
         printf("$   /join   <channel> - Join a channel\n");
@@ -511,8 +533,42 @@ int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, ch
         return 0; 
     }
 
+    // emoji command
+    if (strncmp(stdin_msg_buf, "/emoji", 6) == 0) {
+        DEBUG_PRINT("[CMD] /emoji triggered\n");
+        printf("$ Available emoji:\n");
+        printf("$   :fire:   🔥   :flus:  😳   :laugh:  😂\n");
+        printf("$   :skull:  💀   :vomit: 🤮   :flower: 🥀\n");
+        printf("$   :camera: 📷   :gun:   🔫   :eyes:   👀\n");
+        printf("$   :cheese: 🧀   :sob:   😭   :moai:   🗿\n");
+        printf("$ Tip: Type emoji codes in messages, e.g., 'hello :fire: world'\n");
+        return 0;
+    }
+
+    // ascii command
+    if (strncmp(stdin_msg_buf, "/ascii", 6) == 0) {
+        DEBUG_PRINT("[CMD] /ascii triggered\n");
+        printf("$ Available ASCII Art Stickers:\n");
+        printf("$   /troll      - Troll face.\n");
+        printf("$   /squidward  - Handsome.\n");
+        printf("$   /chad       - Gigachad.\n");
+        printf("$   /moai       - Moai.\n");
+        printf("$   /amongus    - Are you sus?\n");
+        printf("$ Tip: Type the command to send the ASCII art to chat\n");
+        return 0;
+    }
+
+    // exit command
+    if (strncmp(stdin_msg_buf, "/exit", 5) == 0) {
+        DEBUG_PRINT("[CMD] /exit triggered - shutting down\n");
+        printf("$ Goodbye!\n");
+        disable_non_canonical_input();  // restore terminal input
+        exit(0);  // terminate the client
+    }
+
     // channels command
     if (strncmp(stdin_msg_buf, "/channels", 9) == 0) {
+        DEBUG_PRINT("[CMD] /channels triggered\n");
         printf("WORK IN PROGRESS\n");
         // TODO request_channels(soc);
         return 0;
@@ -520,11 +576,13 @@ int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, ch
 
     // let /join and /create even when not in channel
     if (strncmp(stdin_msg_buf, "/join", 5) == 0 || strncmp(stdin_msg_buf, "/create", 7) == 0) {
+        DEBUG_PRINT("[CMD] /join or /create allowed\n");
         return 1;  // allow send to server
     }
 
     // regular message in main menu
     if (*in_channel == 0) {
+        DEBUG_PRINT("[CMD] Message blocked\n");
         printf("$ Join a channel first! Use /join <channel>\n");
         return 0;  // block the send
     }
@@ -571,16 +629,127 @@ void request_channels(int soc) {
 // replaces emoji codes with unicode characters client side
 // params: str - string to parse
 void emoji_parser(char *str) {
-    char *pos = strstr(str, ":fire:");
-    while (pos != NULL) {
-        char *rest = pos + 6;  // everything after :fire:
-        memmove(pos + 4, rest, strlen(rest) + 1);  // shift rest of string
-        pos[0] = 0xF0;  // 🔥 utf-8 bytes
-        pos[1] = 0x9F;
-        pos[2] = 0x94;
-        pos[3] = 0xA5;
-        
-        // search for next
-        pos = strstr(str, ":fire:");
+    // table for emoji info: code, utf-8 bytes, length
+    struct { 
+        char *code; 
+        char utf8[5]; 
+        int len; 
+    } emoji[] = {
+        {":fire:",      "\xF0\x9F\x94\xA5", 4}, // 🔥
+        {":flush:",     "\xF0\x9F\x98\xB3", 4}, // 😳
+        {":joy:",       "\xF0\x9F\x98\x82", 4}, // 😂
+        {":skull:",     "\xF0\x9F\x92\x80", 4}, // 💀
+        {":vomit:",     "\xF0\x9F\xA4\xAE", 4}, // 🤮
+        {":flower:",    "\xF0\x9F\xA5\x80", 4}, // 🥀
+        {":camera:",    "\xF0\x9F\x93\xB7", 4}, // 📷
+        {":gun:",       "\xF0\x9F\x94\xAB", 4}, // 🔫
+        {":eyes:",      "\xF0\x9F\x91\x80", 4}, // 👀
+        {":cheese:",    "\xF0\x9F\xA7\x80", 4}, // 🧀
+        {":sob:",       "\xF0\x9F\x98\xAD", 4}, // 😭
+        {":moai:",      "\xF0\x9F\x97\xBF", 4}, // 🗿
+        {NULL,          "", 0}
+    };
+    
+    // process each emoji types
+    for (int e = 0; emoji[e].code != NULL; e++) {
+        char *pos = strstr(str, emoji[e].code);
+        while (pos != NULL) {
+            int code_len = strlen(emoji[e].code);
+            char *rest = pos + code_len;
+            memmove(pos + emoji[e].len, rest, strlen(rest) + 1);
+            memcpy(pos, emoji[e].utf8, emoji[e].len);
+            DEBUG_PRINT("[EMOJI] Replaced %s with unicode\n", emoji[e].code);
+            pos = strstr(str, emoji[e].code);
+        }
+    }
+}
+
+void print_ascii_art(char *data) {
+    if (strcmp(data, "/squidward") == 0) {
+        printf("⠀⠀⠀⠀⠀⠀⣠⠴⠒⠉⠉⠉⠉⠉⠓⠢⣄⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⡞⠁⠀⢀⡀⠀⠀⠀⠀⡄⠀⠈⣆⠀⠀\n");
+        printf("⠀⠀⠀⠀⢸⠁⠀⠀⠀⣱⠀⠀⠀⠐⣣⠂⠀⢹⡀⠀\n");
+        printf("⠀⠀⠀⠀⢸⠀⠀⠀⠀⢇⢠⣤⣴⣕⢹⢶⣄⣠⠇⠀\n");
+        printf("⠀⠀⠀⠀⠈⢧⠀⠀⡰⠀⠋⢣⣽⠎⠈⣿⡟⢻⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠓⠦⡷⣄⣀⠀⣰⡀⠀⡇⢀⠞⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⡸⠁⡇⠸⢰⠉⡩⢶⡹⡇⠀⠀⠀\n");
+        printf("⠀⣀⠤⠖⠒⡿⠹⠁⢰⠁⠀⠈⠈⢯⣭⠃⡇⠀⠀⠀\n");
+        printf("⣋⠀⠀⠀⢰⠁⠀⠀⠘⠦⣄⡀⠀⠈⠐⡆⢙⣆⠀⠀\n");
+        printf("⠉⠉⠳⣄⠀⢇⢠⡄⠀⠀⠀⠉⣳⠒⠒⡻⠉⠘⠓⢆\n");
+    }
+    else if (strcmp(data, "/chad") == 0) {
+        printf("⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠛⠛⠛⠋⠉⠈⠉⠉⠉⠉⠛⠻⢿⣿⣿⣿⣿⣿⣿⣿ \n");
+        printf("⣿⣿⣿⣿⣿⡿⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⢿⣿⣿⣿⣿⠀\n");
+        printf("⣿⣿⣿⣿⡏⣀⠀⠀⠀⠀⠀⠀⠀⣀⣤⣤⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣿⣿⠀\n");
+        printf("⣿⣿⣿⢏⣴⣿⣷⠀⠀⠀⠀⠀⢾⣿⣿⣿⣿⣿⣿⡆⠀⠀⠀⠀⠀⠀⠀⠈⣿⣿⠀\n");
+        printf("⣿⣿⣟⣾⣿⡟⠁⠀⠀⠀⠀⠀⢀⣾⣿⣿⣿⣿⣿⣷⢢⠀⠀⠀⠀⠀⠀⠀⢸⣿⠀\n");
+        printf("⣿⣿⣿⣿⣟⠀⡴⠄⠀⠀⠀⠀⠀⠀⠙⠻⣿⣿⣿⣿⣷⣄⠀⠀⠀⠀⠀⠀⠀⣿⠀\n");
+        printf("⣿⣿⣿⠟⠻⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠶⢴⣿⣿⣿⣿⣿⣧⠀⠀⠀⠀⠀⠀⣿⠀\n");
+        printf("⣿⣁⡀⠀⠀⢰⢠⣦⠀⠀⠀⠀⠀⠀⠀⠀⢀⣼⣿⣿⣿⣿⣿⡄⠀⣴⣶⣿⡄⣿⠀\n");
+        printf("⣿⡋⠀⠀⠀⠎⢸⣿⡆⠀⠀⠀⠀⠀⠀⣴⣿⣿⣿⣿⣿⣿⣿⠗⢘⣿⣟⠛⠿⣼⠀\n");
+        printf("⣿⣿⠋⢀⡌⢰⣿⡿⢿⡀⠀⠀⠀⠀⠀⠙⠿⣿⣿⣿⣿⣿⡇⠀⢸⣿⣿⣧⢀⣼⠀\n");
+        printf("⣿⣿⣷⢻⠄⠘⠛⠋⠛⠃⠀⠀⠀⠀⠀⢿⣧⠈⠉⠙⠛⠋⠀⠀⠀⣿⣿⣿⣿⣿⠀\n");
+        printf("⣿⣿⣧⠀⠈⢸⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠟⠀⠀⠀⠀⢀⢃⠀⠀⢸⣿⣿⣿⣿⠀\n");
+        printf("⣿⣿⡿⠀⠴⢗⣠⣤⣴⡶⠶⠖⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡸⠀⣿⣿⣿⣿⠀\n");
+        printf("⣿⣿⣿⡀⢠⣾⣿⠏⠀⠠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠛⠉⠀⣿⣿⣿⣿⠀\n");
+        printf("⣿⣿⣿⣧⠈⢹⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣿⣿⣿⣿⠀\n");
+        printf("⣿⣿⣿⣿⡄⠈⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣴⣾⣿⣿⣿⣿⣿⠀\n");
+        printf("⣿⣿⣿⣿⣧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀\n");
+        printf("⣿⣿⣿⣿⣷⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀\n");
+        printf("⣿⣿⣿⣿⣿⣦⣄⣀⣀⣀⣀⠀⠀⠀⠀⠘⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀\n");
+        printf("⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⡄⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀\n");
+    }
+    else if (strcmp(data, "/troll") == 0) {
+        printf("⠀⠀⠀⠀⠀⠀⠀⣠⣤⣤⣤⡤⢤⣤⣤⣤⣤⣤⣄⣀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⣠⣿⡿⣟⠯⡒⢯⣽⣓⣒⢾⣯⣭⣿⣿⠿⠭⠭⣯⣷⣦⡀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⣰⣿⣯⣞⣕⣽⠾⠿⠿⠿⢿⣏⣿⣿⣿⡗⣽⣿⣿⣷⡝⣿⣿⡆⠀⠀\n");
+        printf("⠀⠀⠀⣀⣛⠛⢿⣛⢝⢁⣀⣀⣀⠓⠶⠈⣿⣿⡿⠗⠉⠁⢀⣀⣹⣛⣛⣳⢄⠀\n");
+        printf("⠀⡔⡾⢁⣴⡆⢦⣬⣙⣛⣋⣤⣿⣿⣷⣾⣿⣿⣿⡆⢿⣿⡟⠻⠛⡉⣍⣲⢱⠁\n");
+        printf("⠀⣇⣇⢸⣉⡀⢦⣌⡙⠻⠿⣯⣭⣥⠡⡤⠿⢿⣿⣿⡆⠉⡻⢿⣿⠇⢻⣟⠼⠀\n");
+        printf("⠀⠈⠪⣴⣿⣧⡀⢉⠛⠘⢶⣦⣬⠉⣀⠓⠿⠿⠯⢉⣴⠿⠿⠓⡁⡄⠀⣿⠃⠀\n");
+        printf("⠀⠀⠀⠙⣿⣿⣷⣌⠻⢠⣤⣀⠉⠐⠛⠿⠿⠰⠶⠦⠰⠶⠇⠘⠃⠁⠀⣿⠀⠀\n");
+        printf("⠀⠀⠀⠀⠘⢿⣿⣿⣷⣌⠻⢿⠇⣼⣶⣦⡄⣄⣀⡀⢀⡀⢀⡀⡀⠀⢠⣿⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠙⠯⣛⠭⣻⠶⣬⣉⣛⠛⠃⠿⠿⠃⠿⠃⠚⣀⣁⣤⣾⣿⡀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠒⠯⣶⣋⡽⢛⣿⣯⣿⣭⣭⡿⢿⣿⣻⣾⢟⣿⡇⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⠿⠿⣶⣾⣿⣿⣿⣭⣭⣭⣶⣿⡿⠁⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠙⠛⠛⠛⠛⠋⠁⠀⠀⠀\n");
+    }
+    else if (strcmp(data, "/moai") == 0) {
+        printf("⠀⠀⠀⠀⠀⠀⢀⢄⡒⠒⡒⠒⢰⠒⣒⢶⠤⡀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⡰⡩⠂⠀⠀⠀⠀⠀⠣⡊⠙⣷⢱⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⣰⡑⣀⣂⡠⢀⠀⠀⠄⡀⡌⡃⡽⢽⡆⠀⠀\n");
+        printf("⠀⠀⠀⠀⠻⣿⣿⣿⣿⣿⣿⣶⣶⣦⡤⢄⣌⣻⣇⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⣾⣿⠟⠻⣿⡿⠛⠁⠀⢷⡄⣿⢿⢿⠀⠀\n");
+        printf("⠀⠀⠀⠀⡘⡠⢀⣠⢲⠃⢁⠀⠀⢠⠖⠛⠓⢸⣼⡄⠀\n");
+        printf("⠀⠀⠀⢰⢋⡴⢋⡏⡜⠐⠁⠈⠤⠀⠀⠀⠀⢮⣻⣧⠀\n");
+        printf("⠀⣀⠔⠕⠒⠈⠉⠀⠀⠀⠀⠀⠀⠀⠀⡀⠐⢻⡟⢹⡀\n");
+        printf("⠰⣷⣶⣤⣤⣄⣀⣀⣴⣦⡆⠀⠀⠀⡠⡂⠀⠈⢷⡴⡇\n");
+        printf("⠀⠀⣼⣿⣿⣿⣿⣿⡿⠋⠁⠀⠀⢀⠇⣴⣿⣶⣾⣿⣧\n");
+        printf("⠀⢰⣯⣭⣭⣌⣀⣀⠀⠀⠀⠀⠀⠀⠀⠋⢿⣿⣿⣿⣿\n");
+        printf("⠀⠀⣿⣿⣿⣿⣿⣿⣯⡿⠔⠀⠀⠀⠀⠀⠈⣿⣿⣿⣿\n");
+        printf("⠀⠀⢸⣿⣿⣿⡿⠛⠀⠀⠀⠀⠀⡀⠀⠀⢐⣿⣿⣿⡇\n");
+        printf("⠀⠀⠘⣿⣿⣿⣥⣄⣰⣊⣤⣀⣤⣶⣶⣿⣿⣿⣿⣿⠇\n");
+        printf("⠀⠀⠀⠀⠉⠛⠛⠛⠛⠻⠿⠿⠿⠿⠿⠿⠿⠿⠛⠁⠀\n");
+    }
+    else if (strcmp(data, "/amongus") == 0) {
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣤⣤⣤⣤⣤⣶⣦⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⣿⡿⠛⠉⠙⠛⠛⠛⠛⠻⢿⣿⣷⣤⡀⠀⠀⠀⠀⠀ \n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⠋⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⠈⢻⣿⣿⡄⠀⠀⠀⠀ \n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⣸⣿⡏⠀⠀⠀⣠⣶⣾⣿⣿⣿⠿⠿⠿⢿⣿⣿⣿⣄⠀⠀⠀ \n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⣿⣿⠁⠀⠀⢰⣿⣿⣯⠁⠀⠀⠀⠀⠀⠀⠀⠈⠙⢿⣷⡄⠀ \n");
+        printf("⠀⠀⣀⣤⣴⣶⣶⣿⡟⠀⠀⠀⢸⣿⣿⣿⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣷⠀ \n");
+        printf("⠀⢰⣿⡟⠋⠉⣹⣿⡇⠀⠀⠀⠘⣿⣿⣿⣿⣷⣦⣤⣤⣤⣶⣶⣶⣶⣿⣿⣿⠀ \n");
+        printf("⠀⢸⣿⡇⠀⠀⣿⣿⡇⠀⠀⠀⠀⠹⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠃⠀ \n");
+        printf("⠀⣸⣿⡇⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠉⠻⠿⣿⣿⣿⣿⡿⠿⠿⠛⢻⣿⡇⠀⠀ \n");
+        printf("⠀⣿⣿⠁⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣧⠀⠀ \n");
+        printf("⠀⣿⣿⠀⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⠀⠀ \n");
+        printf("⠀⣿⣿⠀⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⠀⠀ \n");
+        printf("⠀⢿⣿⡆⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⡇⠀⠀ \n");
+        printf("⠀⠸⣿⣧⡀⠀⣿⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⠃⠀⠀ \n");
+        printf("⠀⠀⠛⢿⣿⣿⣿⣿⣇⠀⠀⠀⠀⠀⣰⣿⣿⣷⣶⣶⣶⣶⠶⠀⢠⣿⣿⠀⠀⠀ \n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⣿⣿⡇⠀⣽⣿⡏⠁⠀⠀⢸⣿⡇⠀⠀⠀ \n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⣿⣿⡇⠀⢹⣿⡆⠀⠀⠀⣸⣿⠇⠀⠀⠀ \n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⢿⣿⣦⣄⣀⣠⣴⣿⣿⠁⠀⠈⠻⣿⣿⣿⣿⡿⠏⠀⠀⠀⠀ \n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠈⠛⠻⠿⠿⠿⠿⠋⠁⠀\n");
     }
 }
