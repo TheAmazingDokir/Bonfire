@@ -23,7 +23,7 @@
 
 // func prototypes
 void handle_new_connection(int listen_soc, Client **clients, int *count, int *num_new);
-void handle_client_read(Client *client, Client **clients, int *count, int i, Channel **channels, int *num_channels);
+void handle_client_read(Client *client, Client **clients, int *count, int i, Channel **channels, int *num_channels, PrivateChannel **private_channels, int *num_private_channels);
 void handle_client_write(Client *client);
 void archive_message(Message *msg);
 void broadcast_message(Client **clients, int count, Client *sender, Message *msg, Channel **channels, int num_channels);
@@ -31,6 +31,8 @@ void send_history(Client *target);
 void respond_to_client_with_message(Client *client, char *action, int msg_size, char *msg_data);
 void broadcast_system_message(Client *client_to_exclude, Client **clients, int count, char *action, char *msg_data, Channel **channels, int num_channels);
 void send_disconnect_message(Client *client_to_exclude, Client **clients, int count, Channel **channels, int num_channels);
+void send_online_users_message(Client *client, Client **clients, int count);
+void handle_friend_request(Client *client, Client **clients, int count, char *friend_name, Channel **channels, int *num_channels, PrivateChannel **private_channels, int *num_private_channels);
 
 int CLIENT_IN_BUF_SIZE = sizeof(Message) * 51; // 2^14 bytes
 int CLIENT_OUT_BUF_SIZE = sizeof(Message) * 51;
@@ -83,12 +85,16 @@ int main()
     // only to realize later that its just damned line 53 reading garbage
     memset(client_sockets, 0, sizeof(Client *) * MAX_NUMBER_OF_CONNECTIONS);
 
-    // Temp data
+    // Temp data for channels
     Channel *channels[128];
+    PrivateChannel *private_channels[128];
+
     int num_channels = 0;
+    int num_private_channels = 0;
 
     // Load channels
     load_channels(channels, &num_channels);
+    load_private_channels(private_channels, &num_private_channels, channels, num_channels);
 
     // Event loop
     while (1)
@@ -132,7 +138,7 @@ int main()
             Client *client = client_sockets[i];
             if (FD_ISSET(client->soc, &read_fds))
             {
-                handle_client_read(client, client_sockets, &current_number_of_connections, i, channels, &num_channels);
+                handle_client_read(client, client_sockets, &current_number_of_connections, i, channels, &num_channels, private_channels, &num_private_channels);
             }
         }
 
@@ -289,7 +295,7 @@ void handle_new_connection(int listen_soc, Client **clients, int *count, int *nu
     // send_history(new_client);
 }
 
-void handle_client_read(Client *client, Client **clients, int *count, int i, Channel **channels, int *num_channels)
+void handle_client_read(Client *client, Client **clients, int *count, int i, Channel **channels, int *num_channels, PrivateChannel **private_channels, int *num_private_channels)
 {
 
     // code to read messages from connections
@@ -365,35 +371,58 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
             else if (strcmp(msg->action, "JOIN") == 0)
             {
                 char *channel_name = msg->data;
-                if (check_channel_exists(channels, *num_channels, channel_name))
+                // Check if allowed to join
+                if (check_client_allowed_to_join(client, private_channels, *num_private_channels, channel_name) == 0)
                 {
-                    respond_to_client_with_message(client, "JOIN:S", 29, "Successfully joined channel!");
-
-                    // Send disconnect message to all clients in the old channel
-                    send_disconnect_message(client, clients, *count, channels, *num_channels);
-
-                    // Send system message to all clients in the same channel
-                    char message[64];
-                    strcpy(message, "");
-                    // Display in green colour
-                    strcat(message, "\t\033[32m(");
-                    strcat(message, client->user_name);
-                    strcat(message, " has joined the channel)\033[0m");
-                    handle_join_channel(client, channels, *num_channels, channel_name, i);
-                    send_history(client);
-                    broadcast_system_message(client, clients, *count, "SYS", message, channels, *num_channels);
-                    DEBUG_PRINT("[JOIN] Client fd=%d joined channel '%s'\n", client->soc, channel_name);
+                    respond_to_client_with_message(client, "JOIN:F", 42, "You are not allowed to join this channel!");
+                    DEBUG_PRINT("[JOIN] Client fd=%d failed to join channel '%s'\n", client->soc, channel_name);
                 }
                 else
                 {
-                    respond_to_client_with_message(client, "JOIN:F", 22, "Channel not found!");
-                    DEBUG_PRINT("[JOIN] Client fd=%d failed to join channel '%s'\n", client->soc, channel_name);
+                    // Handle friends' private channels
+                    char *friends_channel_name = check_if_friend_channel(client, private_channels, *num_private_channels, channel_name);
+                    if (friends_channel_name != NULL)
+                    {
+                        strcpy(channel_name, friends_channel_name);
+                        free(friends_channel_name);
+                    }
+
+                    // Handle normal channels
+                    if (check_channel_exists(channels, *num_channels, channel_name))
+                    {
+                        respond_to_client_with_message(client, "JOIN:S", 29, "Successfully joined channel!");
+
+                        // Send disconnect message to all clients in the old channel
+                        send_disconnect_message(client, clients, *count, channels, *num_channels);
+
+                        // Send system message to all clients in the same channel
+                        char message[64];
+                        strcpy(message, "");
+                        // Display in green colour
+                        strcat(message, "\t\033[32m(");
+                        strcat(message, client->user_name);
+                        strcat(message, " has joined the channel)\033[0m");
+                        handle_join_channel(client, channels, *num_channels, channel_name, i);
+                        send_history(client);
+                        broadcast_system_message(client, clients, *count, "SYS", message, channels, *num_channels);
+                        DEBUG_PRINT("[JOIN] Client fd=%d joined channel '%s'\n", client->soc, channel_name);
+                    }
+                    else
+                    {
+                        respond_to_client_with_message(client, "JOIN:F", 22, "Channel not found!");
+                        DEBUG_PRINT("[JOIN] Client fd=%d failed to join channel '%s'\n", client->soc, channel_name);
+                    }
                 }
             }
             else if (strcmp(msg->action, "ONLINE") == 0)
             {
-                send_online_users_message(client, clients, count);
-                EBUG_PRINT("[ONLINE] Client fd=%d checked who is online\n", client->soc);
+                send_online_users_message(client, clients, *count);
+                DEBUG_PRINT("[ONLINE] Client fd=%d checked who is online\n", client->soc);
+            }
+            else if (strcmp(msg->action, "FRIEND") == 0)
+            {
+                handle_friend_request(client, clients, *count, msg->data, channels, num_channels, private_channels, num_private_channels);
+                DEBUG_PRINT("[FRIEND] Client fd=%d send a friend request to %s\n", client->soc, msg->data);
             }
             else
             {
@@ -504,6 +533,51 @@ void send_online_users_message(Client *client, Client **clients, int count)
     }
     message_data[message_size] = '\0';
     respond_to_client_with_message(client, "ONLINE", message_size, message_data);
+}
+
+void handle_friend_request(Client *client, Client **clients, int count, char *friend_name, Channel **channels, int *num_channels, PrivateChannel **private_channels, int *num_private_channels)
+{
+    Client *friend = NULL;
+    // Find friend
+    for (int i = 0; i < count; i++)
+    {
+        if (strcmp(clients[i]->user_name, friend_name) == 0)
+        {
+            friend = clients[i];
+        }
+    }
+
+    if (friend == NULL)
+    {
+        respond_to_client_with_message(client, "FRIEND", 21, "User does not exist!");
+        return;
+    }
+
+    // Handle private channel creation
+    char new_channel_name[32];
+    strcpy(new_channel_name, client->user_name);
+    strcat(new_channel_name, friend->user_name);
+    Channel *channel = handle_create_channel(channels, num_channels, new_channel_name);
+    handle_create_private_channel(client, private_channels, num_private_channels, channel);
+    handle_invite_to_private_channel(private_channels, *num_private_channels, new_channel_name, friend->user_name);
+
+    // Notify friend with a system message
+    char message[256];
+    // Display in pink colour
+    strcpy(message, "\t\033[35m(");
+    strcat(message, client->user_name);
+    strcat(message, " sent you a friend request, use \":JOIN ");
+    strcat(message, client->user_name);
+    strcat(message, "\" to join a private chat with them)\033[0m");
+    respond_to_client_with_message(friend, "SYS", strlen(message) + 1, message);
+
+    // Send confirmation message to the client
+    // Display in pink colour
+    strcpy(message, "\t\033[35m(");
+    strcat(message, "Friend request sent succesfully, use \":JOIN ");
+    strcat(message, friend->user_name);
+    strcat(message, "\" to join a private chat with them)\033[0m");
+    respond_to_client_with_message(client, "SYS", strlen(message) + 1, message);
 }
 
 // Utils

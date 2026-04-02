@@ -27,6 +27,13 @@ typedef struct channel
 	int num_members;
 } Channel;
 
+typedef struct private_channel
+{
+	Channel *channel;
+	char invited_users[128][16]; // limit number of users in private channels to 128
+	int num_invited_users;
+} PrivateChannel;
+
 typedef struct user
 {
 	char name[16];
