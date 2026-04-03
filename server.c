@@ -31,7 +31,7 @@ void send_history(Client *target);
 void respond_to_client_with_message(Client *client, char *action, int msg_size, char *msg_data);
 void broadcast_system_message(Client *client_to_exclude, Client **clients, int count, char *action, char *msg_data, Channel **channels, int num_channels);
 void send_disconnect_message(Client *client_to_exclude, Client **clients, int count, Channel **channels, int num_channels);
-void send_online_users_message(Client *client, Client **clients, int count);
+void send_online_users_message(Client *client, Client **clients, int count, Channel **channels, int num_channels);
 void handle_friend_request(Client *client, Client **clients, int count, char *friend_name, Channel **channels, int *num_channels, PrivateChannel **private_channels, int *num_private_channels);
 
 int CLIENT_IN_BUF_SIZE = sizeof(Message) * 51; // 2^14 bytes
@@ -353,12 +353,11 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
                 char *channel_name = msg->data;
                 if (check_channel_exists(channels, *num_channels, channel_name))
                 {
-                    respond_to_client_with_message(client, "START:F", 23, "Channel already exists");
+                    respond_to_client_with_message(client, "START:F", 23, "$ Channel already exists");
                     DEBUG_PRINT("[START] Client fd=%d failed to start channel '%s'\n", client->soc, channel_name);
                 }
-                else
-                {
-                    respond_to_client_with_message(client, "START:S", 30, "Channel created successfully!");
+                else {
+                    respond_to_client_with_message(client, "START:S", 30, "$ Channel created successfully!");
 
                     // Send disconnect message to all clients in the old channel
                     send_disconnect_message(client, clients, *count, channels, *num_channels);
@@ -416,7 +415,7 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
             }
             else if (strcmp(msg->action, "ONLINE") == 0)
             {
-                send_online_users_message(client, clients, *count);
+                send_online_users_message(client, clients, *count, channels, *num_channels);
                 DEBUG_PRINT("[ONLINE] Client fd=%d checked who is online\n", client->soc);
             }
             else if (strcmp(msg->action, "FRIEND") == 0)
@@ -507,32 +506,24 @@ void send_disconnect_message(Client *client_to_exclude, Client **clients, int co
     }
 }
 
-void send_online_users_message(Client *client, Client **clients, int count)
-{
-    char message_data[256];
-    int message_size = 0;
-    Channel *channel = client->active_channel;
-    for (int i = 0; i < count; i++)
-    {
-        if (IS_BIT_SET(channel->active_members, i))
-        {
-            // Add only if fits fully
-            if (256 - message_size > strlen(clients[i]->user_name) + 12)
-            {
-                strcat(message_data, clients[i]->user_name);
-                strcat(message_data, "\n");
-                message_size += strlen(clients[i]->user_name) + 1;
-            }
-            else
-            {
-                strcat(message_data, "And others\n");
-                message_size += 11;
-                break;
+void send_online_users_message(Client *client, Client **clients, int count, Channel **channels, int num_channels) {
+    char message_data[2048];  // need larger buffer for ALL channels (just in case)
+    int offset = 0;
+    
+    // looping through ALL channels
+    for (int c = 0; c < num_channels; c++) {
+        // count users in each channel
+        int user_count = 0;
+        for (int i = 0; i < count; i++) {
+            if (clients[i]->active_channel == channels[c]) {
+                user_count++;
             }
         }
+        offset += snprintf(message_data + offset, sizeof(message_data) - offset, "%s:%d\n", channels[c]->name, user_count);
     }
-    message_data[message_size] = '\0';
-    respond_to_client_with_message(client, "ONLINE", message_size, message_data);
+    // format it to match what the client expects "channel_name:user_count\n"
+    message_data[offset] = '\0';
+    respond_to_client_with_message(client, "ONLINE", offset, message_data);
 }
 
 void handle_friend_request(Client *client, Client **clients, int count, char *friend_name, Channel **channels, int *num_channels, PrivateChannel **private_channels, int *num_private_channels)
