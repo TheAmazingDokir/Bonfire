@@ -1,6 +1,7 @@
 #pragma once
 
 // General structs
+#pragma pack(push, 1) // remove padding
 typedef struct message
 {
 	char action[8];
@@ -11,6 +12,7 @@ typedef struct message
 	char data[256];
 	int timestamp;
 } Message;
+#pragma pack(pop)
 
 // Struct to make a doubly-linked list of messages
 typedef struct message_list
