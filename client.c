@@ -33,7 +33,7 @@ int handle_server_message(int soc, Message *soc_msg, char *soc_msg_buf, int *soc
 int handle_user_input(char *c, char *stdin_msg_buf, int *stdin_msg_size);
 void build_outgoing_message(Message *stdin_msg, char *stdin_msg_buf, int stdin_msg_size, char *username, int* username_colour);
 void send_message_to_server(int soc, char *out_msg_buf);
-int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, char *current_channel, int soc);
+int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, char *current_channel, int soc, int *username_colour);
 void request_channels(int soc);
 void emoji_parser(char *str);
 void render_menu();
@@ -175,7 +175,7 @@ int main() {
                 }
 
                 // handle command s& check if msg should be sent
-                int shouldSend = command_handler(stdin_msg_buf, stdin_msg_size, &in_channel, current_channel, soc);
+                int shouldSend = command_handler(stdin_msg_buf, stdin_msg_size, &in_channel, current_channel, soc, &username_colour);
                 if (shouldSend == 1) {
                     build_outgoing_message(stdin_msg, stdin_msg_buf, stdin_msg_size, username, &username_colour);
                     
@@ -455,16 +455,6 @@ void build_outgoing_message(Message *stdin_msg, char *stdin_msg_buf, int stdin_m
         strncpy(stdin_msg->data, stdin_msg_buf + 8, stdin_msg_size - 9);
         stdin_msg->data[stdin_msg_size - 9] = '\0';
         stdin_msg->data_size = stdin_msg_size - 9;
-    } else if (strncmp(stdin_msg_buf, "/color", 6) == 0) {
-        int code = get_code_from_colour_name(stdin_msg_buf + 7, stdin_msg_size - 7);
-        if (code == -1) {
-            printf("Invalid color!\n");
-        }
-        else {
-            *username_colour = code;
-            printf("Colour changed successfully!\n");
-        }
-        // DEBUG_PRINT("[/COLOR] Colour=%s\n", stdin_msg->username_colour);
     } else if (strncmp(stdin_msg_buf, "/friend", 7) == 0) {
         memset(stdin_msg, 0, sizeof(Message)); // remove garbage
         strcpy(stdin_msg->action, "FRIEND");
@@ -476,7 +466,7 @@ void build_outgoing_message(Message *stdin_msg, char *stdin_msg_buf, int stdin_m
         memset(stdin_msg, 0, sizeof(Message)); // remove garbage
         strcpy(stdin_msg->action, "SEND");
         strcpy(stdin_msg->user, username);
-        stdin_msg->username_colour = username_colour;
+        stdin_msg->username_colour = *username_colour;
         strncpy(stdin_msg->data, stdin_msg_buf, stdin_msg_size);
         stdin_msg->data[stdin_msg_size - 1] = '\0';
         stdin_msg->data_size = stdin_msg_size;
@@ -506,8 +496,25 @@ void send_message_to_server(int soc, char *out_msg_buf) {
 //      in_channel - pointer to channel state
 //      current_channel - pointer to current channel name
 // return: 1 if message should be sent to server, 0 if handled client side
-int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, char *current_channel, int soc) {    
+int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, char *current_channel, int soc, int *username_colour) {    
     
+    // change color command
+    if (strncmp(stdin_msg_buf, "/color", 6) == 0)
+    {
+        int code = get_code_from_colour_name(stdin_msg_buf + 7, stdin_msg_size - 7);
+        if (code == -1)
+        {
+            printf("Invalid color!\n");
+        }
+        else
+        {
+            *username_colour = code;
+            printf("Colour changed successfully!\n");
+        }
+        DEBUG_PRINT("[/COLOR] Colour=%d\n", *username_colour);
+        return 0; // dont send to server
+    }
+
     // leave command 
     if (strncmp(stdin_msg_buf, "/leave", 6) == 0) {
         DEBUG_PRINT("[CMD] /leave triggered\n");
