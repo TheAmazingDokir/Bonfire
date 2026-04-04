@@ -27,12 +27,12 @@ void handle_new_connection(int listen_soc, Client **clients, int *count, int *nu
 void handle_client_read(Client *client, Client **clients, int *count, int i, Channel **channels, int *num_channels, PrivateChannel **private_channels, int *num_private_channels);
 void handle_client_write(Client *client);
 void archive_message(Message *msg);
-void broadcast_message(Client **clients, int count, Client *sender, Message *msg, Channel **channels, int num_channels);
+void broadcast_message(Client **clients, int count, Client *sender, Message *msg, Channel **channels, int num_channels, int exclude_sender);
 void send_history(Client *target);
 void respond_to_client_with_message(Client *client, char *action, int msg_size, char *msg_data);
 void broadcast_system_message(Client *client_to_exclude, Client **clients, int count, char *action, char *msg_data, Channel **channels, int num_channels);
 void send_disconnect_message(Client *client_to_exclude, Client **clients, int count, Channel **channels, int num_channels);
-void send_online_users_message(Client *client, Client **clients, int count, Channel **channels, int num_channels);
+void send_online_users_message(Client *client, Client **clients, int count, Channel **channels, int num_channels, PrivateChannel **private_channels, int num_private_channels);
 void handle_friend_request(Client *client, Client **clients, int count, char *friend_name, Channel **channels, int *num_channels, PrivateChannel **private_channels, int *num_private_channels);
 int verify_username(Client *client, Client **clients, int count, char* username);
 
@@ -189,7 +189,7 @@ void archive_message(Message *msg)
 //      count - number of clients in array
 //      sender - pointer to Client who sent message
 //      msg - pointer to Message struct
-void broadcast_message(Client **clients, int count, Client *sender, Message *msg, Channel **channels, int num_channels)
+void broadcast_message(Client **clients, int count, Client *sender, Message *msg, Channel **channels, int num_channels, int exclude_sender)
 {
     int sent_count = 0;
     Channel *channel = find_channel_by_name(channels, num_channels, msg->channel);
@@ -197,11 +197,13 @@ void broadcast_message(Client **clients, int count, Client *sender, Message *msg
     for (int i = 0; i < count; i++)
     {
 
-        // don't send again to sender 
-        // if (clients[i]->soc == sender->soc)
-        // {
-        //     continue;    <- had to uncomment cuz i removed client-side message echos
-        // }
+        if (exclude_sender == 1){ // only use for system messages broadcast
+            // don't send again to sender 
+            if (clients[i]->soc == sender->soc)
+            {
+                continue;
+            }
+        }
 
         // don't send to clients that are not in the channel
         if (IS_BIT_SET(channel->active_members, i) == 0)
@@ -424,7 +426,7 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
             }
             else if (strcmp(msg->action, "ONLINE") == 0)
             {
-                send_online_users_message(client, clients, *count, channels, *num_channels);
+                send_online_users_message(client, clients, *count, channels, *num_channels, private_channels, *num_private_channels);
                 DEBUG_PRINT("[ONLINE] Client fd=%d checked who is online\n", client->soc);
             }
             else if (strcmp(msg->action, "FRIEND") == 0)
@@ -432,12 +434,21 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
                 handle_friend_request(client, clients, *count, msg->data, channels, num_channels, private_channels, num_private_channels);
                 DEBUG_PRINT("[FRIEND] Client fd=%d send a friend request to %s\n", client->soc, msg->data);
             }
+            else if (strcmp(msg->action, "LEAVE") == 0)
+            {
+                // Send disconnect message to all clients in the old channel
+                send_disconnect_message(client, clients, *count, channels, *num_channels);
+
+                client->active_channel = NULL;
+                respond_to_client_with_message(client, "LEAVE:S", 28, "You left the channel.");
+                DEBUG_PRINT("[LEAVE] Client fd=%d left their channel\n", client->soc);
+            }
             else
             {
                 if (client->active_channel != NULL)
                 {
                     archive_message(msg); // saving message to files
-                    broadcast_message(clients, *count, client, msg, channels, *num_channels);
+                    broadcast_message(clients, *count, client, msg, channels, *num_channels, 0);
                 }
             }
             client->in_buf_size = 0;
@@ -498,7 +509,7 @@ void broadcast_system_message(Client *client_to_exclude, Client **clients, int c
     strncpy(message->data, msg_data, sizeof(message->data) * sizeof(char));
     message->data[strlen(msg_data)] = '\0';
 
-    broadcast_message(clients, count, client_to_exclude, message, channels, num_channels);
+    broadcast_message(clients, count, client_to_exclude, message, channels, num_channels, 1);
 }
 
 void send_disconnect_message(Client *client_to_exclude, Client **clients, int count, Channel **channels, int num_channels)
@@ -515,12 +526,16 @@ void send_disconnect_message(Client *client_to_exclude, Client **clients, int co
     }
 }
 
-void send_online_users_message(Client *client, Client **clients, int count, Channel **channels, int num_channels) {
+void send_online_users_message(Client *client, Client **clients, int count, Channel **channels, int num_channels,  PrivateChannel **private_channels, int num_private_channels) {
     char message_data[2048];  // need larger buffer for ALL channels (just in case)
     int offset = 0;
     
     // looping through ALL channels
     for (int c = 0; c < num_channels; c++) {
+        if (check_client_allowed_to_join(client, private_channels, num_private_channels, channels[c]->name) == 0){
+            continue; // skip channels client is not allowed to join
+        }
+
         // count users in each channel
         int user_count = 0;
         for (int i = 0; i < count; i++) {
