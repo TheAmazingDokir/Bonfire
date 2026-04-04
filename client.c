@@ -480,6 +480,14 @@ int handle_server_message(int soc, Message *soc_msg, char *soc_msg_buf, int *soc
             else {
                 printf("[%s] %s\n", soc_msg->user, soc_msg->data);
             }
+
+            // Convert timestamp to local
+            struct tm *time = localtime((time_t*)&soc_msg->timestamp);
+            // Convet to time string
+            char time_str[16];
+            strftime(time_str, sizeof(time_str), "%I:%M %p", time);
+            // For user messages also print time
+            printf("\033[90m%8s\033[0m\n", time_str);
         } else {
             printf("%s\n", soc_msg->data);
         }
@@ -609,7 +617,7 @@ int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, ch
     if (strncmp(stdin_msg_buf, "/leave", 6) == 0) {
         DEBUG_PRINT("[CMD] /leave triggered\n");
 
-        if (in_channel == 1 && strlen(current_channel) > 0) {
+        if (*in_channel == 1 && strlen(current_channel) > 0) {
             Message *leave_msg = malloc(sizeof(Message));
             if (leave_msg == NULL) {
                 perror("malloc");

@@ -10,7 +10,7 @@ typedef struct message
 	int username_colour; // id of the colour that username should be displayed in
 	char channel[32];
 	char data[256];
-	int timestamp;
+	int64_t timestamp;
 } Message;
 #pragma pack(pop)
 
