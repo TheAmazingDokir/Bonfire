@@ -34,6 +34,7 @@ void broadcast_system_message(Client *client_to_exclude, Client **clients, int c
 void send_disconnect_message(Client *client_to_exclude, Client **clients, int count, Channel **channels, int num_channels);
 void send_online_users_message(Client *client, Client **clients, int count, Channel **channels, int num_channels);
 void handle_friend_request(Client *client, Client **clients, int count, char *friend_name, Channel **channels, int *num_channels, PrivateChannel **private_channels, int *num_private_channels);
+int verify_username(Client *client, Client **clients, int count, char* username);
 
 int CLIENT_IN_BUF_SIZE = sizeof(Message) * 51; // 2^14 bytes
 int CLIENT_OUT_BUF_SIZE = sizeof(Message) * 51;
@@ -349,8 +350,12 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
 
             if (strcmp(msg->action, "LOGIN") == 0)
             {
-                strcpy(client->user_name, msg->user);
-                DEBUG_PRINT("[LOGIN] Client fd=%d registered as '%s'\n", client->soc, msg->user);
+                if (verify_username(client, clients, *count, msg->user) == 1){
+                    strcpy(client->user_name, msg->user);
+                    DEBUG_PRINT("[LOGIN] Client fd=%d registered as '%s'\n", client->soc, msg->user);
+                } else{
+                    DEBUG_PRINT("[LOGIN] Client fd=%d failed to register as '%s'\n", client->soc, msg->user);
+                }
             }
             else if (strcmp(msg->action, "START") == 0)
             {
@@ -561,7 +566,7 @@ void handle_friend_request(Client *client, Client **clients, int count, char *fr
     // Display in pink colour
     strcpy(message, "\t\033[35m(");
     strcat(message, client->user_name);
-    strcat(message, " sent you a friend request, use \":JOIN ");
+    strcat(message, " sent you a friend request, use \"/join ");
     strcat(message, client->user_name);
     strcat(message, "\" to join a private chat with them)\033[0m");
     respond_to_client_with_message(friend, "SYS", strlen(message) + 1, message);
@@ -569,10 +574,28 @@ void handle_friend_request(Client *client, Client **clients, int count, char *fr
     // Send confirmation message to the client
     // Display in pink colour
     strcpy(message, "\t\033[35m(");
-    strcat(message, "Friend request sent succesfully, use \":JOIN ");
+    strcat(message, "Friend request sent succesfully, use \"/join ");
     strcat(message, friend->user_name);
     strcat(message, "\" to join a private chat with them)\033[0m");
     respond_to_client_with_message(client, "SYS", strlen(message) + 1, message);
+}
+
+// Return 1 if username is valid and not taken, otherwise returns 0
+int verify_username(Client *client, Client **clients, int count, char* username){
+    if (strlen(username) == 0){
+         respond_to_client_with_message(client, "LOGN:F", 27, "User name cannot be empty!");
+        return 0;
+    }
+    for (int i = 0; i < count; i++)
+    {
+        if (strcmp(clients[i]->user_name, username) == 0)
+        {
+            respond_to_client_with_message(client, "LOGN:F", 25, "User name already taken!");
+            return 0;
+        }
+    }
+    respond_to_client_with_message(client, "LOGN:S", 20, "User name is valid!");
+    return 1;
 }
 
 // Utils

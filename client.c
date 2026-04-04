@@ -36,6 +36,7 @@ int channel_storage_count = 0;
 int channels_loaded = 0;  // 0 = not loaded, 1 = loaded
 
 // func prototypes
+void handle_login(char *username, int soc);
 int setup_socket(int *soc, struct sockaddr_in *server);
 void setup_select_fds(fd_set *read_fds, int soc, int *max_fd);
 int handle_server_message(int soc, Message *soc_msg, char *soc_msg_buf, int *soc_msg_size, char *stdin_msg_buf, int stdin_msg_size);
@@ -99,13 +100,13 @@ void get_username(char *username, int max_len) {
         }
 
         if (is_empty || strlen(input) == 0) {
-            strcpy(username, "Anon");
+            strcpy(username, "");
         } else {
             strncpy(username, input, max_len - 1);
             username[max_len - 1] = '\0';
         }
     } else {
-        strcpy(username, "Anon");
+        strcpy(username, "");
     }
 }
 
@@ -139,25 +140,13 @@ int main() {
     // user login (has to be before canonical input otherwise gets messed up)
     char username[16];
     int username_colour;
-    get_username(username, 16);
+
+    handle_login(username, soc);
+    
     username_colour = get_random_username_colour();
     DEBUG_PRINT("[CLIENT] Username: '%s'\n", username);
     enable_non_canonical_input();
     request_channels(soc);
-
-    // send login to server
-    Message *login_msg = malloc(sizeof(Message));
-    if (login_msg == NULL) {
-        perror("malloc");
-        exit(1);
-    }
-
-    memset(login_msg, 0, sizeof(Message));
-    strcpy(login_msg->action, "LOGIN");
-    strcpy(login_msg->user, username);
-    login_msg->data_size = strlen(username);
-    write(soc, login_msg, sizeof(Message));
-    free(login_msg);
 
     fd_set read_fds;
     int max_fd;
@@ -271,6 +260,49 @@ int main() {
     free(stdin_msg);
     disable_non_canonical_input();
     return 0;
+}
+
+void handle_login(char *username, int soc) {
+    // Login username input loop
+    while (1) {
+        get_username(username, 16);
+
+        // send login to server
+        Message *login_msg = malloc(sizeof(Message));
+        if (login_msg == NULL) {
+            perror("malloc");
+            exit(1);
+        }
+
+        memset(login_msg, 0, sizeof(Message));
+        strcpy(login_msg->action, "LOGIN");
+        strcpy(login_msg->user, username);
+        login_msg->data_size = strlen(username);
+        write(soc, login_msg, sizeof(Message));
+        free(login_msg);
+
+        char *login_response_buff[sizeof(Message)];
+        int login_response_size = 0;
+        
+        while(login_response_size < sizeof(Message)) {
+            int r = read(soc, login_response_buff + login_response_size, sizeof(Message) - login_response_size);
+            if (r == -1) {
+                perror("read");
+                exit(1);
+            }
+            login_response_size += r;
+        }
+
+        Message *login_response = (Message *)login_response_buff;
+
+        if (strcmp(login_response->action, "LOGN:S") == 0) {
+            break;
+        } else if (strcmp(login_response->action, "LOGN:F") == 0) {
+            printf("%s\n", login_response->data);
+        } else {
+            printf("Unexpected response from server.\n");
+        }
+    }
 }
 
 
