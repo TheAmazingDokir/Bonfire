@@ -6,6 +6,7 @@
 #include <netinet/in.h> /* Internet domain header */
 #include <arpa/inet.h>  /* only needed on my mac */
 #include <dirent.h>     /* for directory operations */
+#include <time.h>
 #include "set_ops.h"
 #include "constants.h"
 #include "entities.h"
@@ -341,6 +342,9 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
                 strncpy(msg->channel, client->active_channel->name, sizeof(msg->channel) - 1);
                 msg->channel[sizeof(msg->channel) - 1] = '\0';
             }
+            // Set message timestamp
+            msg->timestamp = (int64_t)time(NULL);
+
             DEBUG_PRINT("[RECV] Client fd=%d | Action=%s | DataSize=%d | Data=\"%.50s\"\n", client->soc, msg->action, msg->data_size, msg->data);
 
             if (strcmp(msg->action, "LOGIN") == 0)
