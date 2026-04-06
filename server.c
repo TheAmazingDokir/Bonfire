@@ -532,7 +532,6 @@ void send_online_users_message(Client *client, Client **clients, int count, Chan
         if (check_client_allowed_to_join(client, private_channels, num_private_channels, channels[c]->name) == 0){
             continue; // skip channels client is not allowed to join
         }
-
         // count users in each channel
         int user_count = 0;
         for (int i = 0; i < count; i++) {
