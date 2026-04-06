@@ -4,8 +4,8 @@ TextColor TEXT_COLOURS[] = {
     {"red", 31},
     {"green", 32},
     {"yellow", 33},
-    {"purple", 34},
-    {"pink", 35},
-    {"blue", 36},
+    {"blue", 34},
+    {"purple", 35},
+    {"cyan", 36},
     {"white", 37},
 };
