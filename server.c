@@ -53,7 +53,7 @@ int main()
     // initialize server address
     struct sockaddr_in server;
     server.sin_family = AF_INET;
-    server.sin_port = htons(51984);
+    server.sin_port = htons(PORT);
     memset(&server.sin_zero, 0, 8);
     server.sin_addr.s_addr = INADDR_ANY;
 
@@ -64,7 +64,7 @@ int main()
         close(listen_soc);
         exit(1);
     }
-    DEBUG_PRINT("[SERVER] Bound to port 51984\n");
+    DEBUG_PRINT("[SERVER] Bound to port %d\n", PORT);
 
     // Set up a queue in the kernel to hold pending connections.
     if (listen(listen_soc, LISTEN_BACKLOG) < 0)

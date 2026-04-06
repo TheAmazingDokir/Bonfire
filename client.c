@@ -363,7 +363,7 @@ int setup_socket(int *soc, struct sockaddr_in *server) {
 
     // initialize server address
     server->sin_family = AF_INET;
-    server->sin_port = htons(51984);
+    server->sin_port = htons(PORT);
     memset(&server->sin_zero, 0, 8);
     struct addrinfo *ai;
 
