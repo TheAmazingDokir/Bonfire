@@ -363,7 +363,7 @@ int setup_socket(int *soc, struct sockaddr_in *server) {
 
     // initialize server address
     server->sin_family = AF_INET;
-    server->sin_port = htons(51984);
+    server->sin_port = htons(PORT);
     memset(&server->sin_zero, 0, 8);
     struct addrinfo *ai;
 
@@ -731,7 +731,7 @@ int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, ch
         DEBUG_PRINT("[CMD] /colorlist triggered\n");
         printf("$ Available username colors:\n");
         printf("$   \033[31mred\033[0m     \033[32mgreen\033[0m    \033[33myellow\033[0m\n");
-        printf("$   \033[34mpurple\033[0m  \033[35mpink\033[0m     \033[36mblue\033[0m\n");
+        printf("$   \033[34mblue\033[0m  \033[35mpurple\033[0m     \033[36mcyan\033[0m\n");
         printf("$   \033[37mwhite\033[0m\n");
         printf("$ Tip: Use /color <name> to change your color\n");
         return 0;

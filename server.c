@@ -53,7 +53,7 @@ int main()
     // initialize server address
     struct sockaddr_in server;
     server.sin_family = AF_INET;
-    server.sin_port = htons(51984);
+    server.sin_port = htons(PORT);
     memset(&server.sin_zero, 0, 8);
     server.sin_addr.s_addr = INADDR_ANY;
 
@@ -64,7 +64,7 @@ int main()
         close(listen_soc);
         exit(1);
     }
-    DEBUG_PRINT("[SERVER] Bound to port 51984\n");
+    DEBUG_PRINT("[SERVER] Bound to port %d\n", PORT);
 
     // Set up a queue in the kernel to hold pending connections.
     if (listen(listen_soc, LISTEN_BACKLOG) < 0)
@@ -212,7 +212,7 @@ void broadcast_message(Client **clients, int count, Client *sender, Message *msg
         }
 
         // if out_buf has space then copy message into it
-        if (clients[i]->out_buf_size + sizeof(Message) < CLIENT_OUT_BUF_SIZE)
+        if (clients[i]->out_buf_size + sizeof(Message) < (long unsigned int) CLIENT_OUT_BUF_SIZE)
         {
             memcpy(clients[i]->out_buf + clients[i]->out_buf_size, msg, sizeof(Message));
             clients[i]->out_buf_size += sizeof(Message);
@@ -254,7 +254,7 @@ void send_history(Client *target)
         strcpy(hist_msg.action, "HIST");
 
         // add it to target's out_buf
-        if (target->out_buf_size + sizeof(Message) < CLIENT_OUT_BUF_SIZE)
+        if (target->out_buf_size + sizeof(Message) < (long unsigned int)CLIENT_OUT_BUF_SIZE)
         {
             memcpy(target->out_buf + target->out_buf_size, &hist_msg, sizeof(Message));
             target->out_buf_size += sizeof(Message);
@@ -484,7 +484,7 @@ void respond_to_client_with_message(Client *client, char *action, int msg_size, 
     {
         message->data[0] = '\0';
     }
-    if (client->out_buf_size + sizeof(Message) < CLIENT_OUT_BUF_SIZE)
+    if (client->out_buf_size + sizeof(Message) < (long unsigned int) CLIENT_OUT_BUF_SIZE)
     {
         memcpy(client->out_buf + client->out_buf_size, message, sizeof(Message));
         client->out_buf_size += sizeof(Message);
