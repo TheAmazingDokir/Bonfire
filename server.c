@@ -364,11 +364,11 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
                 char *channel_name = msg->data;
                 if (check_channel_exists(channels, *num_channels, channel_name))
                 {
-                    respond_to_client_with_message(client, "START:F", 23, "$ Channel already exists");
+                    respond_to_client_with_message(client, "START:F", 29, "\b\b$ Channel already exists!");
                     DEBUG_PRINT("[START] Client fd=%d failed to start channel '%s'\n", client->soc, channel_name);
                 }
                 else {
-                    respond_to_client_with_message(client, "START:S", 30, "$ Channel created successfully!");
+                    respond_to_client_with_message(client, "START:S", 35, "\b\b$ Channel created successfully!");
 
                     // Send disconnect message to all clients in the old channel
                     send_disconnect_message(client, clients, *count, channels, *num_channels);
@@ -384,7 +384,7 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
                 // Check if allowed to join
                 if (check_client_allowed_to_join(client, private_channels, *num_private_channels, channel_name) == 0)
                 {
-                    respond_to_client_with_message(client, "JOIN:F", 42, "You are not allowed to join this channel!");
+                    respond_to_client_with_message(client, "JOIN:F", 47, "\b\b$ You are not allowed to join this channel!");
                     DEBUG_PRINT("[JOIN] Client fd=%d failed to join channel '%s'\n", client->soc, channel_name);
                 }
                 else
@@ -400,26 +400,23 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
                     // Handle normal channels
                     if (check_channel_exists(channels, *num_channels, channel_name))
                     {
-                        respond_to_client_with_message(client, "JOIN:S", 29, "Successfully joined channel!");
+                        respond_to_client_with_message(client, "JOIN:S", 34, "\b\b$ Successfully joined channel!");
 
                         // Send disconnect message to all clients in the old channel
                         send_disconnect_message(client, clients, *count, channels, *num_channels);
 
                         // Send system message to all clients in the same channel
-                        char message[64];
-                        strcpy(message, "");
-                        // Display in green colour
-                        strcat(message, "\t\033[32m(");
+                        char message[64];      // slightly increased the buffer
+                        strcpy(message, "\b\b$ \033[32m"); // display in green colour
                         strcat(message, client->user_name);
-                        strcat(message, " has joined the channel)\033[0m");
+                        strcat(message, " joined the channel!\033[0m");
                         handle_join_channel(client, channels, *num_channels, channel_name, i);
                         send_history(client);
                         broadcast_system_message(client, clients, *count, "SYS", message, channels, *num_channels);
                         DEBUG_PRINT("[JOIN] Client fd=%d joined channel '%s'\n", client->soc, channel_name);
                     }
-                    else
-                    {
-                        respond_to_client_with_message(client, "JOIN:F", 22, "Channel not found!");
+                    else {
+                        respond_to_client_with_message(client, "JOIN:F", 24, "\b\b$ Channel not found!");
                         DEBUG_PRINT("[JOIN] Client fd=%d failed to join channel '%s'\n", client->soc, channel_name);
                     }
                 }
@@ -440,7 +437,7 @@ void handle_client_read(Client *client, Client **clients, int *count, int i, Cha
                 send_disconnect_message(client, clients, *count, channels, *num_channels);
 
                 client->active_channel = NULL;
-                respond_to_client_with_message(client, "LEAVE:S", 28, "You left the channel.");
+                respond_to_client_with_message(client, "LEAVE:S", 28, "\b\b$ You left the channel.");
                 DEBUG_PRINT("[LEAVE] Client fd=%d left their channel\n", client->soc);
             }
             else
@@ -519,9 +516,9 @@ void send_disconnect_message(Client *client_to_exclude, Client **clients, int co
     {
         char message[64];
         // Display in red colour
-        strcpy(message, "\t\033[31m(");
+        strcpy(message, "\b\b$ \033[31m");
         strcat(message, client_to_exclude->user_name);
-        strcat(message, " has left the channel)\033[0m");
+        strcat(message, " left the channel!\033[0m");
         broadcast_system_message(client_to_exclude, clients, count, "SYS", message, channels, num_channels);
     }
 }
@@ -535,7 +532,6 @@ void send_online_users_message(Client *client, Client **clients, int count, Chan
         if (check_client_allowed_to_join(client, private_channels, num_private_channels, channels[c]->name) == 0){
             continue; // skip channels client is not allowed to join
         }
-
         // count users in each channel
         int user_count = 0;
         for (int i = 0; i < count; i++) {
@@ -564,7 +560,7 @@ void handle_friend_request(Client *client, Client **clients, int count, char *fr
 
     if (friend == NULL)
     {
-        respond_to_client_with_message(client, "FRIEND", 21, "User does not exist!");
+        respond_to_client_with_message(client, "FRIEND", 26, "\b\b$ User does not exist!");
         return;
     }
 
@@ -579,37 +575,37 @@ void handle_friend_request(Client *client, Client **clients, int count, char *fr
     // Notify friend with a system message
     char message[256];
     // Display in pink colour
-    strcpy(message, "\t\033[35m(");
+    strcpy(message, "$ \033[35m");
     strcat(message, client->user_name);
-    strcat(message, " sent you a friend request, use \"/join ");
+    strcat(message, " sent you a friend request!\n$ Tip: type \"/join ");
     strcat(message, client->user_name);
-    strcat(message, "\" to join a private chat with them)\033[0m");
+    strcat(message, "\" to privately message.\033[0m");
     respond_to_client_with_message(friend, "SYS", strlen(message) + 1, message);
 
     // Send confirmation message to the client
     // Display in pink colour
-    strcpy(message, "\t\033[35m(");
-    strcat(message, "Friend request sent succesfully, use \"/join ");
+    strcpy(message, "$ \033[35m");
+    strcat(message, "Friend request sent!\n$ Tip: type \"/join ");
     strcat(message, friend->user_name);
-    strcat(message, "\" to join a private chat with them)\033[0m");
+    strcat(message, "\" to privately message.\033[0m");
     respond_to_client_with_message(client, "SYS", strlen(message) + 1, message);
 }
 
 // Return 1 if username is valid and not taken, otherwise returns 0
 int verify_username(Client *client, Client **clients, int count, char* username){
     if (strlen(username) == 0){
-         respond_to_client_with_message(client, "LOGN:F", 27, "User name cannot be empty!");
+         respond_to_client_with_message(client, "LOGN:F", 32, "\b\b$ User name cannot be empty!");
         return 0;
     }
     for (int i = 0; i < count; i++)
     {
         if (strcmp(clients[i]->user_name, username) == 0)
         {
-            respond_to_client_with_message(client, "LOGN:F", 25, "User name already taken!");
+            respond_to_client_with_message(client, "LOGN:F", 30, "\b\b$ User name already taken!");
             return 0;
         }
     }
-    respond_to_client_with_message(client, "LOGN:S", 20, "User name is valid!");
+    respond_to_client_with_message(client, "LOGN:S", 25, "\b\b$ User name is valid!");
     return 1;
 }
 

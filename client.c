@@ -92,7 +92,7 @@ void get_username(char *username, int max_len) {
 
         // check if empty or just whitespace
         int is_empty = 1;
-        for (int i = 0; i < strlen(input); i++) {
+        for (int i = 0; (size_t)i < strlen(input); i++) {
             if (input[i] != ' ' && input[i] != '\t') {
                 is_empty = 0;
                 break;
@@ -284,7 +284,7 @@ void handle_login(char *username, int soc) {
         char *login_response_buff[sizeof(Message)];
         int login_response_size = 0;
         
-        while(login_response_size < sizeof(Message)) {
+        while((size_t)login_response_size < sizeof(Message)) {
             int r = read(soc, login_response_buff + login_response_size, sizeof(Message) - login_response_size);
             if (r == -1) {
                 perror("read");
@@ -433,7 +433,7 @@ void setup_select_fds(fd_set *read_fds, int soc, int *max_fd) {
 // return: 1 if processed, 0 if buffering
 int handle_server_message(int soc, Message *soc_msg, char *soc_msg_buf, int *soc_msg_size, char *stdin_msg_buf, int stdin_msg_size) {
     DEBUG_PRINT("[HANDLE] soc_msg_size=%d, sizeof(Message)=%zu\n", *soc_msg_size, sizeof(Message));
-    if (*soc_msg_size < sizeof(Message)) {
+    if ((size_t)*soc_msg_size < sizeof(Message)) {
         int r = read(soc, soc_msg_buf + *soc_msg_size, sizeof(Message) - *soc_msg_size);
         
         if (r == -1) {
@@ -502,6 +502,9 @@ int handle_server_message(int soc, Message *soc_msg, char *soc_msg_buf, int *soc
             DEBUG_PRINT("[ONLINE] Done parsing, cleaned buffer, returning\n");
             return 1;  // do not print it as a message lol
         }
+
+        // // check if system message 
+        // int is_system_msg = (strcmp(soc_msg->action, "SYS") == 0);      
 
 
         // add username to msg
@@ -625,7 +628,7 @@ void build_outgoing_message(Message *stdin_msg, char *stdin_msg_buf, int stdin_m
 //      out_msg_buf - buffer with message
 void send_message_to_server(int soc, char *out_msg_buf) {
     int count = 0;
-    while (count < sizeof(Message)) {
+    while ((size_t)count < sizeof(Message)) {
         int w = write(soc, out_msg_buf + count, sizeof(Message) - count);
         if (w == -1) {
             perror("write");
@@ -713,8 +716,10 @@ int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, ch
         printf("$   /chad       - Gigachad.\n");
         printf("$   /moai       - Moai.\n");
         printf("$   /yes        - Yes.\n");
+        printf("$   /woah       - Pikachu!\n");
         printf("$   /pony       - Friendship is magic!\n");
         printf("$   /apple      - Why is it bad?\n");
+        printf("$   /cinema     - Absolute cinema.\n");
         printf("$   /amongus    - Are you sus?\n");
         printf("$   /squidward  - Handsome.\n");
         printf("$ Tip: Type the command to send the ASCII art to chat\n");
@@ -729,7 +734,6 @@ int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, ch
         printf("$   \033[34mpurple\033[0m  \033[35mpink\033[0m     \033[36mblue\033[0m\n");
         printf("$   \033[37mwhite\033[0m\n");
         printf("$ Tip: Use /color <name> to change your color\n");
-        printf("> ");
         return 0;
     }
 
@@ -741,7 +745,7 @@ int command_handler(char *stdin_msg_buf, int stdin_msg_size, int *in_channel, ch
         }
         else {
             *username_colour = code;
-            printf("Colour changed successfully!\n");
+            printf("$ Colour changed successfully!\n");
         }
         DEBUG_PRINT("[/COLOR] Colour=%d\n", *username_colour);
         return 0; // dont send to server
@@ -811,7 +815,7 @@ void request_channels(int soc) {
     memcpy(out_buf, msg, sizeof(Message));
     
     int count = 0;
-    while (count < sizeof(Message)) {
+    while ((size_t)count < sizeof(Message)) {
         int w = write(soc, out_buf + count, sizeof(Message) - count);
         if (w == -1) {
             perror("write");
@@ -1011,5 +1015,47 @@ void print_ascii_art(char *data) {
         printf("⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣆⠈⠋⣴⣿⣿⡟⢁⣶⣷⡄⠙⣯⠀⢼⣶⣄⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿\n");
         printf("⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⢸⣿⣿⣿⡇⠰⣶⣶⣶⣶⡿⣦⣄⣀⠙⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿\n");
         printf("⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠟⠀⠘⠛⣿⣿⣷⣀⠙⠛⢟⣡⡇⠘⠻⠿⢀⣼⣟⠀⢹⣿⣿⣿⣿⣿⣿⣿⣿⣿\n");
+    }  else if (strcmp(data, "/woah") == 0) { 
+        printf("⢀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⢻⣿⡗⢶⣤⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣠⣄\n");
+        printf("⠀⢻⣇⠀⠈⠙⠳⣦⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣤⠶⠛⠋⣹⣿⡿\n");
+        printf("⠀⠀⠹⣆⠀⠀⠀⠀⠙⢷⣄⣀⣀⣀⣤⣤⣤⣄⣀⣴⠞⠋⠉⠀⠀⠀⢀⣿⡟⠁\n");
+        printf("⠀⠀⠀⠙⢷⡀⠀⠀⠀⠀⠉⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⡾⠋⠀⠀\n");
+        printf("⠀⠀⠀⠀⠈⠻⡶⠂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣠⡾⠋⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⣼⠃⠀⢠⠒⣆⠀⠀⠀⠀⠀⠀⢠⢲⣄⠀⠀⠀⢻⣆⠀⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⢰⡏⠀⠀⠈⠛⠋⠀⢀⣀⡀⠀⠀⠘⠛⠃⠀⠀⠀⠈⣿⡀⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⣾⡟⠛⢳⠀⠀⠀⠀⠀⣉⣀⠀⠀⠀⠀⣰⢛⠙⣶⠀⢹⣇⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⢿⡗⠛⠋⠀⠀⠀⠀⣾⠋⠀⢱⠀⠀⠀⠘⠲⠗⠋⠀⠈⣿⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠘⢷⡀⠀⠀⠀⠀⠀⠈⠓⠒⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⡇⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠈⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣧⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠈⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠁⠀⠀⠀\n");
+    }  else if (strcmp(data, "/cinema") == 0) { 
+        printf("⠀⠀⢀⠀⣠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⢀⠀⣿⡂⢹⡇⠀⠀⣰⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⢸⡇⢸⣇⢸⣇⠀⢀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠾⠀⠀⣏⠀⡆⠀⠀\n");
+        printf("⢸⣷⢸⣇⣸⣇⠀⣾⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⣀⣠⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢲⣂⠀⣿⡄⢸⡀⣤\n");
+        printf("⢠⣿⣿⣿⣿⣿⣿⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣾⣿⣿⣊⡝⠛⠙⠂⠄⠠⠀⠀⠀⠀⠀⠀⡀⠀⠄⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢿⣦⣼⣷⣼⣁⠼\n");
+        printf("⢸⣿⣿⣿⣿⣿⣿⣀⢀⣀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣿⣿⣿⣿⡻⣥⢋⡔⡀⠀⠀⠀⠀⠂⠁⠀⠄⠀⠠⠀⠂⢀⠀⠐⠈⠀⢀⠠⢀⣀⡀⠘⣿⡟⢿⣿⣿⣄\n");
+        printf("⠈⣿⣿⣿⣿⣿⣿⣿⠿⠋⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⣷⢯⣿⣾⡔⠀⠀⠀⠀⠀⠂⢁⠠⠈⢀⠐⠀⠂⡀⠂⠠⠈⠀⠀⠉⠁⠁⣀⣈⠧⠈⠻⣿⣿\n");
+        printf("⠀⣿⣿⣟⢿⠿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⣿⡟⠛⠉⡉⢸⡉⠁⢀⠀⠀⠀⠀⠠⢁⠂⡐⢈⠀⠂⡁⠂⠄⢁⠂⠄⠡⠈⠄⠂⠄⡈⠀⠂⡁⠀⢻⠇\n");
+        printf("⠀⣿⣿⣿⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠺⣿⡇⣤⡤⢔⡿⣇⠀⢦⠀⠀⠀⠀⠐⣀⠂⡐⠢⢈⡐⠠⠁⠌⡀⠂⠌⠠⠁⡌⢐⠂⠔⡈⠆⣔⣠⣯⠀\n");
+        printf("⠘⡟⣛⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⡇⣿⣿⠗⡲⠏⠟⠿⠀⠈⠓⠀⠀⠀⠡⡀⠆⣁⠢⢁⠤⠑⡨⠐⠤⠑⡨⠐⡡⠐⡌⢌⠒⡄⠈⠉⠁⠁⠀\n");
+        printf("⠃⡜⡠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣼⣿⡟⢡⡿⠿⠷⠀⠀⠀⠀⠀⢀⠱⣀⠣⢄⠢⡁⢆⠱⢠⠉⢆⠱⣀⠣⡐⠡⢌⠢⡘⠤⡁⠐⠒⠂⠂\n");
+        printf("⠐⠐⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠂⠀⠀⢻⠸⣡⢶⣿⣟⡃⠀⠘⠀⠀⢆⠡⢂⡜⢠⠃⡜⢠⢃⠦⣉⠦⡑⢢⡑⠬⡑⡌⢢⢑⠢⠅⠀⠀⡀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⠐⠀⢁⡰⢸⠣⠉⠉⠋⠉⠀⠀⠀⠀⠈⠀⠣⢡⠜⢢⠩⢔⢣⡘⢲⡐⠦⣙⠢⣌⠓⣌⠲⡡⢎⠥⠃⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣶⡶⠆⠁⠠⠁⠊⠐⠁⠈⠠⠄⠂⠉⠈⠖⠀⠀⠒⣶⢦⡁⠂⠀⠀⠀⠀⠀⠀⠀⠀⠘⠃⠁⠀⠀⠀⠁⠈⠱⢌⠳⣌⠳⣌⢣⡕⢮⡘⡅⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠿⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠂⠀⠀⠏⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠁⠘⡳⢬⠳⡜⢦⡹⠀⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠁⠋⠧⠹⠀⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠃⢈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⠀⠀⠠⠐⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⠓⠂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⡀⠀⢀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⢶⠀⡶⣲⠀⣆⡒⣰⠒⢦⢰⠀⢰⡆⣴⠐⣶⠒⣐⣒⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣴⣺⣿⣿⣿⠛\n");
+        printf("⠀⠀⠀⠀⠀⠀⠐⠀⠈⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠞⠚⠃⠻⠴⠃⠦⠝⠘⠤⠎⠸⠤⠘⠧⠞⠀⠛⠀⠰⠤⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⡟⣾⣿⣿⣿⠃⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣤⣤⣄⠀⠀⢠⣤⠀⠀⣤⣄⠀⠀⠀⣤⣤⠀⢠⣤⣤⣤⣤⣤⡄⢠⣤⣄⠀⠀⠀⠀⣤⣤⡄⠀⠀⠀⢠⣤⡄⠀⠀⠀⢘⡮⡝⣿⣿⡿⢆⠁⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣿⠏⠉⠉⢿⣷⠀⢸⣿⠀⠠⣿⣿⣧⡀⠀⣿⣿⠀⢸⣿⡏⠉⠉⠉⠁⢼⣿⣿⡄⠀⠀⢸⡿⣿⡇⠀⠀⢀⣿⢻⣷⠀⠀⠀⡞⡜⣹⣿⣿⡙⢆⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⠀⢸⣿⠀⠐⣿⡯⢻⣷⡀⣿⣿⠀⢸⣿⣷⣶⣶⡆⠀⢺⣿⠹⣿⡀⢠⣿⠃⣿⡇⠀⠀⣾⡟⠀⢿⣧⠀⠀⢣⠣⢽⣿⣯⡙⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢿⣿⡀⠀⠀⣠⣤⠀⢸⣿⠀⢈⣿⡧⠀⠹⣿⣿⣿⠀⢸⣿⡇⠀⠀⠀⠀⢸⣿⡄⢻⣧⣾⡏⢠⣿⡇⠀⣼⣿⣷⣶⣾⣿⣇⠀⠀⠱⢸⣿⢣⠜⠁⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢿⣿⣶⣾⣿⠏⠀⢸⣿⠀⠀⣿⡷⠀⠀⠹⣿⣿⠀⢸⣿⣿⣿⣿⣿⡆⢸⣿⡆⠀⢿⡿⠀⢰⣿⡇⢀⣿⡏⠀⠀⠀⢹⣿⡀⠀⢁⢸⡇⠈⡆⠀⠀⠀\n");
+        printf("⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠉⠀⠀⠀⠈⠉⠀⠀⠉⠁⠀⠀⠀⠉⠉⠀⠈⠉⠉⠈⠉⠉⠁⠈⠉⠀⠀⠈⠁⠀⠀⠉⠁⠈⠉⠀⠀⠀⠀⠈⠉⠁⠐⡀⢸⡐⠁⠀⠀⠀⠀\n");
     }
 }
